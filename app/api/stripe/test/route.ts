@@ -5,6 +5,8 @@ import { withCors } from '@/utils/cors';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
+export const runtime = 'edge';
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const GET = withCors(async function GET(request: NextRequest) {
   try {

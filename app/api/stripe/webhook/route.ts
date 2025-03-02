@@ -35,6 +35,8 @@ export const config = {
   },
 };
 
+export const runtime = 'edge';
+
 async function checkExistingSubscription(customerId: string): Promise<boolean> {
   const { data: existingSubs } = await supabaseAdmin
     .from('subscriptions')

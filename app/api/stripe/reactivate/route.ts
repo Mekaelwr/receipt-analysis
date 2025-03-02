@@ -6,6 +6,8 @@ import { withCors } from '@/utils/cors';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
+export const runtime = 'edge';
+
 export const POST = withCors(async function POST(request: NextRequest) {
   try {
     const { subscriptionId } = await request.json();
