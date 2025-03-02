@@ -12,6 +12,8 @@ const nextConfig = {
     // Ignoring TypeScript errors for build to succeed
     ignoreBuildErrors: true,
   },
+  // Add or update cookie settings if needed
+  // If you're using middleware for auth, make sure it's configured correctly
 }
 
 module.exports = nextConfig 
