@@ -51,12 +51,17 @@ export default function TopBar() {
   return (
     <div className="w-full bg-surface-light dark:bg-surface-dark border-b border-gray-200 dark:border-gray-700">
       <div className="max-w-7xl mx-auto flex justify-between items-center px-4 py-3">
-        <Link href="/" className="text-md sm:text-lg font-medium text-text dark:text-text-dark flex items-center gap-2 hover:opacity-80 transition-opacity">
-          <span className="text-2xl">🎬</span>
-          <span className="font-sans">NextTemp</span>
-        </Link>
-
-        
+        <div className="flex items-center gap-4">
+          <Link href="/" className="text-md sm:text-lg font-medium text-text dark:text-text-dark flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <span className="text-2xl">🎬</span>
+            <span className="font-sans">NextTemp</span>
+          </Link>
+          
+          <Link href="/penny-pincher" className="px-4 py-2 text-sm font-medium text-text dark:text-text-dark hover:opacity-80 transition-opacity">
+            <i className="fa-solid fa-piggy-bank" style={{ marginRight: '8px' }}></i>
+            Penny Pincher
+          </Link>
+        </div>
 
         <div className="flex items-center gap-4">
           {!user ? (
