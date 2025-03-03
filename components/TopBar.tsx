@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
+import { PiggyBank, Receipt } from 'lucide-react';
 // import { supabase } from '@/utils/supabase';
 
 // TopBar component handles user profile display and navigation
@@ -20,6 +21,19 @@ export default function TopBar() {
 
   // State for tracking logout process
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const navigation = [
+    {
+      name: 'Penny Pincher',
+      href: '/penny-pincher',
+      icon: PiggyBank
+    },
+    {
+      name: 'Uploaded Receipt',
+      href: '/uploaded-receipt',
+      icon: Receipt
+    }
+  ];
 
   // Handle click outside dropdown to close it
   useEffect(() => {
@@ -57,10 +71,16 @@ export default function TopBar() {
             <span className="font-sans">NextTemp</span>
           </Link>
           
-          <Link href="/penny-pincher" className="px-4 py-2 text-sm font-medium text-text dark:text-text-dark hover:opacity-80 transition-opacity">
-            <i className="fa-solid fa-piggy-bank" style={{ marginRight: '8px' }}></i>
-            Penny Pincher
-          </Link>
+          {navigation.map((item) => (
+            <Link
+              key={item.name}
+              href={item.href}
+              className="px-4 py-2 text-sm font-medium text-text dark:text-text-dark hover:opacity-80 transition-opacity flex items-center gap-2"
+            >
+              <item.icon className="h-4 w-4" />
+              {item.name}
+            </Link>
+          ))}
         </div>
 
         <div className="flex items-center gap-4">

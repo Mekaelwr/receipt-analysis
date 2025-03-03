@@ -10,8 +10,8 @@ export default function PennyPincherPage() {
   
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      // Handle file upload when implementing the feature
-      console.log("File selected:", e.target.files[0].name);
+      console.log("Photo captured:", e.target.files[0].name);
+      // Handle the captured image here
     }
   };
 
@@ -47,12 +47,13 @@ export default function PennyPincherPage() {
             Wanna find out if your<br />neighbor got a better price<br />on that <span className={styles.highlight}>milk carton?</span>
           </h2>
           <label htmlFor="receipt-upload" className={styles.uploadButton}>
-            <i className="fa-solid fa-upload"></i>Upload your receipt
+            <i className="fa-solid fa-camera"></i>Take Photo
           </label>
           <input 
             id="receipt-upload" 
             type="file" 
-            accept="image/*" 
+            accept="image/*"
+            capture    // This will open the native camera without specifying which one
             onChange={handleFileUpload} 
             style={{ display: 'none' }} 
           />

@@ -5,6 +5,14 @@
 :root {
   --background: #F8F9FA;
   --foreground: #2F3E46;
+  --color-primary: #286D4C;
+  --color-accent: #EAA300;
+  --color-bg-start: #FFF1D0;
+  --color-bg-end: #FFFCF5;
+  --gradient-overlay: rgba(254, 240, 208, 0.50);
+  --gradient-overlay-end: rgba(255, 216, 126, 0.50);
+  --font-primary: 'Inter', sans-serif;
+  --font-mono: 'Roboto Mono', monospace;
 }
 
 @media (prefers-color-scheme: dark) {
