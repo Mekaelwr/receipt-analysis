@@ -4,12 +4,12 @@ import { useState } from 'react';
 import styles from './penny-pincher.module.css';
 
 export default function PennyPincherPage() {
-  const [file, setFile] = useState<File | null>(null);
+  // Remove unused state if not implementing file handling yet
+  // const [file, setFile] = useState<File | null>(null);
   
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setFile(e.target.files[0]);
-      // Here you would handle the file upload to your backend
+      // Handle file upload when implementing the feature
       console.log("File selected:", e.target.files[0].name);
     }
   };
