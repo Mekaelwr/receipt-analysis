@@ -2,7 +2,7 @@
 
 // Remove the useState import since we're not using it
 // import { useState } from 'react';
-import { ReceiptCard } from '@/components/receipt/ReceiptCard';
+// import { ReceiptCard } from '@/components/receipt/ReceiptCard';
 import { StatsBar } from '@/components/receipt/StatsBar';
 import styles from './penny-pincher.module.css';
 
