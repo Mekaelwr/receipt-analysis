@@ -2,9 +2,11 @@
 
 // Remove the useState import since we're not using it
 // import { useState } from 'react';
+import { ReceiptCard } from '@/components/receipt/ReceiptCard';
+import { StatsBar } from '@/components/receipt/StatsBar';
 import styles from './penny-pincher.module.css';
 
-export default function PennyPincherPage() {
+export default function PennyPincher() {
   // Remove unused state if not implementing file handling yet
   // const [file, setFile] = useState<File | null>(null);
   
@@ -26,20 +28,7 @@ export default function PennyPincherPage() {
         <h1 className={styles.title}>Upload receipts and find out if you got the best price!</h1>
       </div>
       
-      <div className={styles.statsBubble}>
-        <div>
-          <p className={styles.small}>
-            <i className="fa-solid fa-receipt" style={{ color: '#EAA300' }}></i>
-            <strong>23,409</strong> receipts
-          </p>
-        </div>
-        <div>
-          <p className={styles.small}>
-            <i className="fa-solid fa-piggy-bank" style={{ color: '#EAA300' }}></i>
-            <strong>1,400,024</strong> savings
-          </p>
-        </div>
-      </div>
+      <StatsBar receipts={23409} savings={1400024} />
       
       <div className={styles.receiptContainer}>
         <div className={styles.receiptHero}>
