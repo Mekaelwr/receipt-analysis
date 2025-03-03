@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+// Remove the useState import since we're not using it
+// import { useState } from 'react';
 import styles from './penny-pincher.module.css';
 
 export default function PennyPincherPage() {
