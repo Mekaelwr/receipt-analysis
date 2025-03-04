@@ -5,10 +5,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 
 // API route configuration
-export const config = {
-  runtime: 'edge',
-  maxDuration: 30,
-};
+export const runtime = 'edge';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || '',
