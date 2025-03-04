@@ -4,15 +4,14 @@ import { writeFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
+// API route configuration
 export const config = {
-  api: {
-    bodyParser: false,
-    responseLimit: '8mb',
-  },
+  runtime: 'edge',
+  maxDuration: 30,
 };
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY || '',
 });
 
 export async function POST(request: Request) {

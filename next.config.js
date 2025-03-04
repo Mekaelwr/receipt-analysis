@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // ... your existing config ...
   webpack: (config, { isServer }) => {
     config.ignoreWarnings = [
       { module: /node_modules\/punycode/ }
@@ -12,17 +11,11 @@ const nextConfig = {
     // Ignoring TypeScript errors for build to succeed
     ignoreBuildErrors: true,
   },
-  // Add or update cookie settings if needed
-  // If you're using middleware for auth, make sure it's configured correctly
   experimental: {
     serverActions: {
       allowedOrigins: ['localhost:3000'],
     },
-  },
-  api: {
-    bodyParser: false,
-    responseLimit: '8mb',
-  },
+  }
 }
 
 module.exports = nextConfig 
