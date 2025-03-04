@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server';
 import { OpenAI } from 'openai';
-import { writeFile } from 'fs/promises';
-import { join } from 'path';
-import { tmpdir } from 'os';
 
 // API route configuration
 export const runtime = 'edge';
@@ -45,16 +42,9 @@ export async function POST(request: Request) {
 
     console.log('Processing file:', file.name, file.type, file.size);
 
-    // Convert the file to a buffer
+    // Convert the file to base64
     const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    // Create a temporary file
-    const tempFilePath = join(tmpdir(), `receipt-${Date.now()}.jpg`);
-    await writeFile(tempFilePath, buffer);
-
-    // Read the file as base64
-    const base64Image = buffer.toString('base64');
+    const base64Image = Buffer.from(bytes).toString('base64');
 
     console.log('Sending request to OpenAI Vision API');
     
@@ -82,9 +72,6 @@ export async function POST(request: Request) {
     });
 
     console.log('Received response from OpenAI');
-
-    // Clean up the temporary file
-    await writeFile(tempFilePath, '');
 
     const messageContent = response.choices[0].message.content;
     if (!messageContent) {
