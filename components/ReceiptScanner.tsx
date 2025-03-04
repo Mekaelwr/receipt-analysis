@@ -5,9 +5,40 @@ import { ReceiptCard } from '@/components/receipt/ReceiptCard';
 import { StatsBar } from '@/components/receipt/StatsBar';
 import styles from './ReceiptScanner.module.css';
 
+interface ReceiptItem {
+  name: string;
+  price: number;
+}
+
+interface ReceiptData {
+  storeName: string;
+  address?: string;
+  date: string;
+  items: ReceiptItem[];
+  subtotal: number;
+  tax: number;
+  total: number;
+}
+
+interface TransformedReceipt {
+  store: string;
+  address: string;
+  date: string;
+  items: {
+    id: string;
+    name: string;
+    price: string;
+  }[];
+  totals: {
+    subtotal: string;
+    tax: string;
+    total: string;
+  };
+  totalSavings: string;
+}
+
 const ReceiptScanner = () => {
-  const [image, setImage] = useState<File | null>(null);
-  const [analyzedReceipt, setAnalyzedReceipt] = useState<any>(null);
+  const [analyzedReceipt, setAnalyzedReceipt] = useState<TransformedReceipt | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -15,7 +46,6 @@ const ReceiptScanner = () => {
     const file = event.target.files?.[0];
     if (file) {
       console.log('File selected:', file.name, file.type, file.size);
-      setImage(file);
       setError(null);
       await analyzeReceipt(file);
     }
@@ -41,15 +71,15 @@ const ReceiptScanner = () => {
         throw new Error(errorData.error || 'Failed to analyze receipt');
       }
 
-      const data = await response.json();
+      const data: ReceiptData = await response.json();
       console.log('Received data:', data);
       
       // Transform the data to match the ReceiptCard props format
-      const transformedData = {
+      const transformedData: TransformedReceipt = {
         store: data.storeName,
         address: data.address || 'Address not available',
         date: data.date,
-        items: data.items.map((item: any, index: number) => ({
+        items: data.items.map((item, index) => ({
           id: String(index + 1).padStart(2, '0'),
           name: item.name,
           price: `$${item.price.toFixed(2)}`

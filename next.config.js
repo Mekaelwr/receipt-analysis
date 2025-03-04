@@ -15,7 +15,9 @@ const nextConfig = {
   // Add or update cookie settings if needed
   // If you're using middleware for auth, make sure it's configured correctly
   experimental: {
-    serverActions: true,
+    serverActions: {
+      allowedOrigins: ['localhost:3000'],
+    },
   },
   api: {
     bodyParser: false,

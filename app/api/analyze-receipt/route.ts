@@ -99,7 +99,7 @@ export async function POST(request: Request) {
     console.log('Raw response:', messageContent);
 
     // Clean the response to remove any markdown formatting and extra whitespace
-    let cleanContent = messageContent
+    const cleanContent = messageContent
       .replace(/```json\s*|\s*```/g, '') // Remove markdown code blocks
       .replace(/^\s+|\s+$/g, '') // Trim whitespace
       .replace(/^[^{]*({.*})[^}]*$/, '$1'); // Extract only the JSON object
