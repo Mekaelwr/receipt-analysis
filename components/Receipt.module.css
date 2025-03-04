@@ -1,0 +1,93 @@
+.receipt {
+  background: white;
+  padding: 24px;
+  border-radius: 16px;
+  box-shadow: 0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -1px rgba(0, 0, 0, 0.06);
+  font-family: monospace;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.receiptStore {
+  font-size: 18px;
+  font-weight: 600;
+  text-align: center;
+  margin-bottom: 4px;
+  color: #286D4C;
+}
+
+.receiptAddress {
+  text-align: center;
+  color: #6B7280;
+  margin-bottom: 16px;
+}
+
+.receiptDivider {
+  height: 1px;
+  background: #E5E7EB;
+  margin: 12px 0;
+}
+
+.receiptDate {
+  text-align: center;
+  color: #6B7280;
+  margin-bottom: 16px;
+}
+
+.receiptItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.receiptNumber {
+  width: 24px;
+  color: #6B7280;
+}
+
+.receiptName {
+  flex: 1;
+  margin: 0 8px;
+}
+
+.receiptPrice {
+  text-align: right;
+  font-weight: 500;
+}
+
+.receiptPriceStrike {
+  text-decoration: line-through;
+  color: #6B7280;
+}
+
+.receiptItemSavings {
+  background: #FEF3C7;
+  border-radius: 4px;
+  padding: 8px;
+  margin: 4px -8px;
+}
+
+.receiptItemMain {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.savingsRow {
+  display: flex;
+  align-items: center;
+  margin-top: 4px;
+  color: #92400E;
+  font-size: 12px;
+}
+
+.savingsRow i {
+  margin-right: 4px;
+  color: #EAA300;
+}
+
+.savingsPrice {
+  margin-left: auto;
+  font-weight: 500;
+} 
