@@ -32,6 +32,11 @@ export default function TopBar() {
       name: 'Uploaded Receipt',
       href: '/uploaded-receipt',
       icon: Receipt
+    },
+    {
+      name: 'Take Photo',
+      href: '/take-photo',
+      icon: Receipt
     }
   ];
 
