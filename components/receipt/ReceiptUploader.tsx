@@ -220,6 +220,9 @@ export function ReceiptUploader() {
         const validJSON = validateReceiptJSON(data.receipt_json);
         if (validJSON) {
           setReceiptJSON(data.receipt_json);
+          
+          // Save the receipt data to Supabase
+          await saveReceiptToSupabase(processedFile, data.receipt_json);
         } else {
           console.error("Invalid receipt JSON structure");
           setAnalysisError("The receipt data structure is invalid. Please try again.");
@@ -271,6 +274,37 @@ export function ReceiptUploader() {
     }
     
     return true;
+  };
+
+  // Function to save the receipt data to Supabase
+  const saveReceiptToSupabase = async (imageFile: File, receiptJSON: Record<string, unknown>) => {
+    try {
+      console.log("Saving receipt data to Supabase...");
+      
+      const formData = new FormData();
+      formData.append('image', imageFile);
+      formData.append('receiptData', JSON.stringify(receiptJSON));
+      
+      const response = await fetch('/api/upload-receipt', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Error saving receipt:", errorData);
+        return;
+      }
+      
+      const data = await response.json();
+      console.log("Receipt saved successfully:", data);
+      
+      // You can add a success message or redirect here if needed
+      
+    } catch (error) {
+      console.error("Error saving receipt to Supabase:", error);
+      // Continue execution - we've already analyzed the receipt
+    }
   };
 
   return (

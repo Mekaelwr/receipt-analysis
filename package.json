@@ -35,7 +35,8 @@
     "react-intersection-observer": "^9.15.1",
     "react-scroll": "^1.9.2",
     "sharp": "^0.33.5",
-    "stripe": "^17.5.0"
+    "stripe": "^17.5.0",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -44,6 +45,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/react-scroll": "^1.8.10",
+    "@types/uuid": "^10.0.0",
     "eslint": "^9",
     "eslint-config-next": "15.1.3",
     "postcss": "^8",
