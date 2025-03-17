@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import Image from 'next/image';
 import styles from './receipt.module.css';
 
 export function ReceiptUploader() {
@@ -14,13 +15,13 @@ export function ReceiptUploader() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const preprocessImage = (file: File): Promise<File> => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       if (!usePreprocessing) {
         resolve(file);
         return;
       }
 
-      const img = new Image();
+      const img = new window.Image();
       img.onload = () => {
         try {
           const canvas = canvasRef.current;
@@ -208,7 +209,15 @@ export function ReceiptUploader() {
             
             {previewUrl && showPreview && !isAnalyzing && (
               <div className={styles.imagePreview}>
-                <img src={previewUrl} alt="Receipt preview" />
+                {previewUrl && (
+                  <Image 
+                    src={previewUrl} 
+                    alt="Receipt preview" 
+                    width={300}
+                    height={400}
+                    style={{ objectFit: 'contain', width: '100%', height: 'auto' }}
+                  />
+                )}
               </div>
             )}
           </div>
@@ -248,7 +257,15 @@ export function ReceiptUploader() {
           
           {previewUrl && showPreview && (
             <div className={styles.imagePreviewLarge}>
-              <img src={previewUrl} alt="Receipt preview" />
+              {previewUrl && (
+                <Image 
+                  src={previewUrl} 
+                  alt="Receipt image" 
+                  width={600}
+                  height={800}
+                  style={{ objectFit: 'contain', width: '100%', height: 'auto' }}
+                />
+              )}
             </div>
           )}
         </>
