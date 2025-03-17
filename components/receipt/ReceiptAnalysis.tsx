@@ -2,33 +2,100 @@
 
 import styles from './receipt.module.css';
 
-interface ReceiptAnalysisProps {
-  analysisText: string;
+interface ReceiptJSON {
+  store_information: {
+    name: string;
+    address: string;
+    phone_number: string;
+  };
+  purchase_details: {
+    date: string;
+    time: string;
+  };
+  items: Array<{
+    name: string;
+    price: number;
+    quantity: number;
+    regular_price: number;
+    discounts: Array<{
+      type: string;
+      amount: number;
+    }>;
+    final_price: number;
+  }>;
+  taxes: Array<{
+    category: string;
+    rate: string;
+    amount: number;
+  }>;
+  financial_summary: {
+    subtotal: number;
+    total_discounts: number;
+    net_sales: number;
+    total_taxes: number;
+    total_amount: number;
+    change_given: number;
+  };
+  payment_information: {
+    method: string;
+  };
+  savings_summary: {
+    store_savings: number;
+    membership_savings: number;
+    total_savings: number;
+    savings_percentage: string;
+  };
+  points_summary: {
+    earned: number;
+    available: number;
+    expiring_date: string;
+  };
+  summary: {
+    total_items: number;
+  };
+  return_policy: {
+    return_window_days: number;
+    proof_of_purchase_required: boolean;
+  };
 }
 
-export function ReceiptAnalysis({ analysisText }: ReceiptAnalysisProps) {
-  // Parse the analysis text to extract structured data
+interface ReceiptAnalysisProps {
+  analysisText: string;
+  receiptJSON?: ReceiptJSON;
+}
+
+export function ReceiptAnalysis({ analysisText, receiptJSON }: ReceiptAnalysisProps) {
+  // Log the received data for debugging
+  console.log("ReceiptAnalysis component received:");
+  console.log("- analysisText:", analysisText ? (typeof analysisText === 'string' ? "Text string" : "JSON object") : "null");
+  console.log("- receiptJSON:", receiptJSON ? "Present" : "null");
+  
+  if (receiptJSON) {
+    console.log("Receipt JSON structure:", JSON.stringify(receiptJSON, null, 2));
+  }
+  
+  // Legacy parsing function for backward compatibility
   const parseAnalysis = (text: string) => {
     console.log("Raw analysis text:", text);
     
     // Extract store name
-    const storeNameMatch = text.match(/\*\*Store Name:\*\* (.*?)(?:\s{2,}|\n)/);
+    const storeNameMatch = text.match(/\*\*Store Name:\*\*\s+(.*?)(?:\s{2,}|\n)/);
     const storeName = storeNameMatch ? storeNameMatch[1].trim() : 'Unknown Store';
     
     // Extract address
-    const addressMatch = text.match(/\*\*Address:\*\* (.*?)(?:\s{2,}|\n)/);
+    const addressMatch = text.match(/\*\*Address:\*\*\s+(.*?)(?:\s{2,}|\n)/);
     const address = addressMatch ? addressMatch[1].trim() : '';
     
     // Extract phone number
-    const phoneMatch = text.match(/\*\*Phone Number:\*\* (.*?)(?:\s{2,}|\n)/);
+    const phoneMatch = text.match(/\*\*Phone Number:\*\*\s+(.*?)(?:\s{2,}|\n)/);
     const phone = phoneMatch ? phoneMatch[1].trim() : '';
     
     // Extract date
-    const dateMatch = text.match(/\*\*Purchase Date:\*\* (.*?)(?:\s{2,}|\n)/);
+    const dateMatch = text.match(/\*\*Purchase Date:\*\*\s+(.*?)(?:\s{2,}|\n)/);
     const date = dateMatch ? dateMatch[1].trim() : '';
     
     // Extract time if available
-    const timeMatch = text.match(/\*\*Time:\*\* (.*?)(?:\s{2,}|\n)/);
+    const timeMatch = text.match(/\*\*Time:\*\*\s+(.*?)(?:\s{2,}|\n)/);
     const time = timeMatch ? timeMatch[1].trim() : '';
     
     // Extract items - improved regex to handle various formats
@@ -143,11 +210,48 @@ export function ReceiptAnalysis({ analysisText }: ReceiptAnalysisProps) {
           ? taxes.map(t => t.amount).join(' + ') 
           : '$0.00',
         total: total
-      }
+      },
+      payment: '',
+      savings: '',
+      returnPolicy: ''
     };
   };
+
+  // If receiptJSON is provided, use it directly
+  // Otherwise, fall back to parsing the analysis text
+  const receiptData = receiptJSON ? {
+    store: receiptJSON.store_information.name || 'Unknown Store',
+    address: receiptJSON.store_information.address || '',
+    phone: receiptJSON.store_information.phone_number || '',
+    date: `${receiptJSON.purchase_details.date || ''}${receiptJSON.purchase_details.time ? ' at ' + receiptJSON.purchase_details.time : ''}`,
+    items: receiptJSON.items.map((item, index) => ({
+      id: (index + 1).toString().padStart(2, '0'),
+      name: item.name || 'Unknown Item',
+      price: `$${(item.final_price || 0).toFixed(2)}`
+    })),
+    taxes: receiptJSON.taxes ? receiptJSON.taxes.map(tax => ({
+      name: tax.category || 'Tax',
+      amount: `$${(tax.amount || 0).toFixed(2)}`
+    })) : [],
+    totals: {
+      subtotal: `$${(receiptJSON.financial_summary.subtotal || 0).toFixed(2)}`,
+      tax: receiptJSON.taxes && receiptJSON.taxes.length > 0 
+        ? receiptJSON.taxes.map(t => `$${(t.amount || 0).toFixed(2)}`).join(' + ') 
+        : '$0.00',
+      total: `$${(receiptJSON.financial_summary.total_amount || 0).toFixed(2)}`
+    },
+    payment: receiptJSON.payment_information && receiptJSON.payment_information.method ? 
+      receiptJSON.payment_information.method : '',
+    savings: receiptJSON.savings_summary && receiptJSON.savings_summary.total_savings > 0 ? 
+      `$${receiptJSON.savings_summary.total_savings.toFixed(2)}` : 
+      '',
+    returnPolicy: receiptJSON.return_policy && receiptJSON.return_policy.return_window_days > 0 ? 
+      `${receiptJSON.return_policy.return_window_days} days` : 
+      ''
+  } : parseAnalysis(analysisText || '');
   
-  const receiptData = parseAnalysis(analysisText);
+  // Log the data being used for rendering
+  console.log("Receipt data for rendering:", receiptData);
   
   return (
     <div className={styles.receiptWrapper}>
@@ -158,22 +262,62 @@ export function ReceiptAnalysis({ analysisText }: ReceiptAnalysisProps) {
         
         <div className={styles.receipt}>
           <div className={styles.receiptStore}>{receiptData.store}</div>
-          <div className={styles.receiptAddress}>{receiptData.address}</div>
+          {receiptData.address && (
+            <div className={styles.receiptAddress}>{receiptData.address}</div>
+          )}
           {receiptData.phone && (
             <div className={styles.receiptAddress}>{receiptData.phone}</div>
           )}
           <div className={styles.receiptDivider}></div>
-          <div className={styles.receiptDate}>{receiptData.date}</div>
+          {receiptData.date && (
+            <div className={styles.receiptDate}>{receiptData.date}</div>
+          )}
           <div className={styles.receiptDivider}></div>
 
-          {receiptData.items.length > 0 ? (
-            receiptData.items.map((item) => (
-              <div key={item.id} className={styles.receiptItem}>
-                <div className={styles.receiptNumber}>{item.id}</div>
-                <div className={styles.receiptName}>{item.name}</div>
-                <div className={styles.receiptPrice}>{item.price}</div>
-              </div>
-            ))
+          {receiptData.items && receiptData.items.length > 0 ? (
+            <>
+              <div className={styles.receiptSectionHeader}>Items</div>
+              {receiptData.items.map((item) => (
+                <div key={item.id} className={styles.receiptItem}>
+                  <div className={styles.receiptNumber}>{item.id}</div>
+                  <div className={styles.receiptName}>
+                    {item.name}
+                    {receiptJSON && 
+                     receiptJSON.items && 
+                     parseInt(item.id) > 0 &&
+                     parseInt(item.id) <= receiptJSON.items.length && 
+                     receiptJSON.items[parseInt(item.id) - 1] && 
+                     receiptJSON.items[parseInt(item.id) - 1].quantity > 1 && (
+                      <span className={styles.receiptQuantity}>
+                        x{receiptJSON.items[parseInt(item.id) - 1].quantity}
+                      </span>
+                    )}
+                  </div>
+                  <div className={styles.receiptPrice}>{item.price}</div>
+                </div>
+              ))}
+              
+              {/* Display discounts if available */}
+              {receiptJSON && receiptJSON.items && receiptJSON.items.some(item => 
+                item.discounts && item.discounts.length > 0 && 
+                item.discounts.some(d => d.amount > 0)
+              ) && (
+                <>
+                  <div className={styles.receiptSectionHeader}>Discounts</div>
+                  {receiptJSON.items.map((item, index) => 
+                    item.discounts && item.discounts.map((discount, discountIndex) => 
+                      discount.amount > 0 && (
+                        <div key={`${index}-${discountIndex}`} className={styles.receiptItem}>
+                          <div className={styles.receiptNumber}></div>
+                          <div className={styles.receiptName}>{item.name} - {discount.type || 'Discount'}</div>
+                          <div className={styles.receiptPrice}>-${(discount.amount || 0).toFixed(2)}</div>
+                        </div>
+                      )
+                    )
+                  )}
+                </>
+              )}
+            </>
           ) : (
             <div className={styles.receiptItem}>
               <div className={styles.receiptName}>No items found in receipt</div>
@@ -182,12 +326,14 @@ export function ReceiptAnalysis({ analysisText }: ReceiptAnalysisProps) {
 
           <div className={styles.receiptDivider}></div>
           
+          <div className={styles.receiptSectionHeader}>Summary</div>
+          
           <div className={styles.receiptItem}>
             <div className={styles.receiptName}>Subtotal</div>
             <div className={styles.receiptPrice}>{receiptData.totals.subtotal}</div>
           </div>
 
-          {receiptData.taxes.length > 0 ? (
+          {receiptData.taxes && receiptData.taxes.length > 0 ? (
             receiptData.taxes.map((tax, index) => (
               <div key={index} className={styles.receiptItem}>
                 <div className={styles.receiptName}>{tax.name}</div>
@@ -200,6 +346,13 @@ export function ReceiptAnalysis({ analysisText }: ReceiptAnalysisProps) {
               <div className={styles.receiptPrice}>$0.00</div>
             </div>
           )}
+          
+          {receiptJSON && receiptJSON.financial_summary && receiptJSON.financial_summary.total_discounts > 0 && (
+            <div className={styles.receiptItem}>
+              <div className={styles.receiptName}>Total Discounts</div>
+              <div className={styles.receiptPrice}>-${receiptJSON.financial_summary.total_discounts.toFixed(2)}</div>
+            </div>
+          )}
 
           <div className={styles.receiptDivider}></div>
 
@@ -207,6 +360,111 @@ export function ReceiptAnalysis({ analysisText }: ReceiptAnalysisProps) {
             <div className={styles.receiptName}>Total</div>
             <div className={styles.receiptPrice}><strong>{receiptData.totals.total}</strong></div>
           </div>
+          
+          {receiptData.payment && (
+            <div className={styles.receiptItem}>
+              <div className={styles.receiptName}>Payment Method</div>
+              <div className={styles.receiptPrice}>{receiptData.payment}</div>
+            </div>
+          )}
+          
+          {receiptJSON && receiptJSON.financial_summary && receiptJSON.financial_summary.change_given > 0 && (
+            <div className={styles.receiptItem}>
+              <div className={styles.receiptName}>Change Given</div>
+              <div className={styles.receiptPrice}>${receiptJSON.financial_summary.change_given.toFixed(2)}</div>
+            </div>
+          )}
+          
+          {/* Savings Section */}
+          {receiptJSON && receiptJSON.savings_summary && (
+            (receiptJSON.savings_summary.total_savings > 0 || 
+             receiptJSON.savings_summary.store_savings > 0 || 
+             receiptJSON.savings_summary.membership_savings > 0) && (
+            <>
+              <div className={styles.receiptDivider}></div>
+              <div className={styles.receiptSectionHeader}>Savings</div>
+              
+              {receiptJSON.savings_summary.store_savings > 0 && (
+                <div className={styles.receiptItem}>
+                  <div className={styles.receiptName}>Store Savings</div>
+                  <div className={styles.receiptPrice}>${receiptJSON.savings_summary.store_savings.toFixed(2)}</div>
+                </div>
+              )}
+              
+              {receiptJSON.savings_summary.membership_savings > 0 && (
+                <div className={styles.receiptItem}>
+                  <div className={styles.receiptName}>Membership Savings</div>
+                  <div className={styles.receiptPrice}>${receiptJSON.savings_summary.membership_savings.toFixed(2)}</div>
+                </div>
+              )}
+              
+              {receiptJSON.savings_summary.total_savings > 0 && (
+                <div className={styles.receiptItem}>
+                  <div className={styles.receiptName}>Total Savings</div>
+                  <div className={styles.receiptPrice}>${receiptJSON.savings_summary.total_savings.toFixed(2)}</div>
+                </div>
+              )}
+              
+              {receiptJSON.savings_summary.savings_percentage && receiptJSON.savings_summary.savings_percentage !== "0%" && (
+                <div className={styles.receiptItem}>
+                  <div className={styles.receiptName}>You Saved</div>
+                  <div className={styles.receiptPrice}>{receiptJSON.savings_summary.savings_percentage}</div>
+                </div>
+              )}
+            </>
+          ))}
+          
+          {/* Points Section */}
+          {receiptJSON && receiptJSON.points_summary && (
+            (receiptJSON.points_summary.earned > 0 || 
+             receiptJSON.points_summary.available > 0 ||
+             receiptJSON.points_summary.expiring_date) && (
+            <>
+              <div className={styles.receiptDivider}></div>
+              <div className={styles.receiptSectionHeader}>Rewards Points</div>
+              
+              {receiptJSON.points_summary.earned > 0 && (
+                <div className={styles.receiptItem}>
+                  <div className={styles.receiptName}>Points Earned</div>
+                  <div className={styles.receiptPrice}>{receiptJSON.points_summary.earned}</div>
+                </div>
+              )}
+              
+              {receiptJSON.points_summary.available > 0 && (
+                <div className={styles.receiptItem}>
+                  <div className={styles.receiptName}>Points Available</div>
+                  <div className={styles.receiptPrice}>{receiptJSON.points_summary.available}</div>
+                </div>
+              )}
+              
+              {receiptJSON.points_summary.expiring_date && (
+                <div className={styles.receiptItem}>
+                  <div className={styles.receiptName}>Points Expiring</div>
+                  <div className={styles.receiptPrice}>{receiptJSON.points_summary.expiring_date}</div>
+                </div>
+              )}
+            </>
+          ))}
+          
+          {/* Return Policy */}
+          {receiptJSON && receiptJSON.return_policy && receiptJSON.return_policy.return_window_days > 0 && (
+            <>
+              <div className={styles.receiptDivider}></div>
+              <div className={styles.receiptSectionHeader}>Return Policy</div>
+              
+              <div className={styles.receiptItem}>
+                <div className={styles.receiptName}>Return Window</div>
+                <div className={styles.receiptPrice}>{receiptJSON.return_policy.return_window_days} days</div>
+              </div>
+              
+              {receiptJSON.return_policy.proof_of_purchase_required && (
+                <div className={styles.receiptItem}>
+                  <div className={styles.receiptName}>Receipt Required</div>
+                  <div className={styles.receiptPrice}>Yes</div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

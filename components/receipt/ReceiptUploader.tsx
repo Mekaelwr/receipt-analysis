@@ -3,6 +3,65 @@
 import { useState, useRef } from 'react';
 import Image from 'next/image';
 import styles from './receipt.module.css';
+import { ReceiptAnalysis } from './ReceiptAnalysis';
+
+// Define the receipt JSON structure
+interface ReceiptJSON {
+  store_information: {
+    name: string;
+    address: string;
+    phone_number: string;
+  };
+  purchase_details: {
+    date: string;
+    time: string;
+  };
+  items: Array<{
+    name: string;
+    price: number;
+    quantity: number;
+    regular_price: number;
+    discounts: Array<{
+      type: string;
+      amount: number;
+    }>;
+    final_price: number;
+  }>;
+  taxes: Array<{
+    category: string;
+    rate: string;
+    amount: number;
+  }>;
+  financial_summary: {
+    subtotal: number;
+    total_discounts: number;
+    net_sales: number;
+    total_taxes: number;
+    total_amount: number;
+    change_given: number;
+  };
+  payment_information: {
+    method: string;
+  };
+  savings_summary: {
+    store_savings: number;
+    membership_savings: number;
+    total_savings: number;
+    savings_percentage: string;
+  };
+  points_summary: {
+    earned: number;
+    available: number;
+    expiring_date: string;
+  };
+  summary: {
+    total_items: number;
+  };
+  return_policy: {
+    return_window_days: number;
+    proof_of_purchase_required: boolean;
+  };
+}
 
 export function ReceiptUploader() {
   const [fileName, setFileName] = useState<string | null>(null);
@@ -10,8 +69,10 @@ export function ReceiptUploader() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [analysisText, setAnalysisText] = useState<string | null>(null);
+  const [receiptJSON, setReceiptJSON] = useState<ReceiptJSON | null>(null);
   const [showPreview, setShowPreview] = useState(true);
   const [usePreprocessing, setUsePreprocessing] = useState(true);
+  const [showDebugInfo, setShowDebugInfo] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const preprocessImage = (file: File): Promise<File> => {
@@ -115,6 +176,7 @@ export function ReceiptUploader() {
     
     // Reset previous analysis
     setAnalysisText(null);
+    setReceiptJSON(null);
     setAnalysisError(null);
     
     // Start analyzing the receipt
@@ -127,6 +189,7 @@ export function ReceiptUploader() {
       const formData = new FormData();
       formData.append('image', processedFile);
       
+      console.log("Sending receipt image for analysis...");
       const response = await fetch('/api/analyze-receipt', {
         method: 'POST',
         body: formData,
@@ -138,9 +201,33 @@ export function ReceiptUploader() {
       }
       
       const data = await response.json();
-      console.log("API response:", data);
+      console.log("API response received:", data);
       
+      // Store the raw analysis text
       setAnalysisText(data.analysis);
+      
+      // Check if we have receipt JSON data
+      if (data.receipt_json) {
+        console.log("Receipt JSON data:", JSON.stringify(data.receipt_json, null, 2));
+        
+        // Check if there was a parse error
+        if (data.parse_error) {
+          console.warn("Parse error occurred:", data.parse_error);
+          console.warn("Using fallback parsed data");
+        }
+        
+        // Validate the JSON structure
+        const validJSON = validateReceiptJSON(data.receipt_json);
+        if (validJSON) {
+          setReceiptJSON(data.receipt_json);
+        } else {
+          console.error("Invalid receipt JSON structure");
+          setAnalysisError("The receipt data structure is invalid. Please try again.");
+        }
+      } else {
+        console.error("No receipt_json in response");
+        setAnalysisError("No receipt data was returned. Please try again.");
+      }
       
       // Hide the preview once analysis is complete
       setShowPreview(false);
@@ -150,6 +237,40 @@ export function ReceiptUploader() {
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  // Function to validate the receipt JSON structure
+  const validateReceiptJSON = (json: any): boolean => {
+    if (!json) return false;
+    
+    // Check for required top-level properties
+    const requiredProps = [
+      'store_information',
+      'purchase_details',
+      'items',
+      'financial_summary'
+    ];
+    
+    for (const prop of requiredProps) {
+      if (!json[prop]) {
+        console.error(`Missing required property: ${prop}`);
+        return false;
+      }
+    }
+    
+    // Check if items is an array
+    if (!Array.isArray(json.items)) {
+      console.error('Items property is not an array');
+      return false;
+    }
+    
+    // Check if taxes is an array (if present)
+    if (json.taxes && !Array.isArray(json.taxes)) {
+      console.error('Taxes property is not an array');
+      return false;
+    }
+    
+    return true;
   };
 
   return (
@@ -224,14 +345,8 @@ export function ReceiptUploader() {
         </div>
       ) : (
         <>
-          <div className={styles.analysisResults}>
-            <h3 className={styles.analysisTitle}>Receipt Analysis</h3>
-            <div className={styles.analysisContent}>
-              {analysisText.split('\n').map((line, index) => (
-                <p key={index}>{line || <br />}</p>
-              ))}
-            </div>
-          </div>
+          {/* Use the ReceiptAnalysis component with the JSON data */}
+          <ReceiptAnalysis analysisText={analysisText} receiptJSON={receiptJSON || undefined} />
           
           <div className={styles.actionButtons}>
             <button 
@@ -240,6 +355,7 @@ export function ReceiptUploader() {
                 setFileName(null);
                 setPreviewUrl(null);
                 setAnalysisText(null);
+                setReceiptJSON(null);
                 setAnalysisError(null);
               }}
             >
@@ -253,6 +369,14 @@ export function ReceiptUploader() {
               <i className={`fa-solid ${showPreview ? 'fa-eye-slash' : 'fa-eye'}`}></i> 
               {showPreview ? 'Hide' : 'View'} Receipt Image
             </button>
+            
+            <button 
+              className={styles.debugButton}
+              onClick={() => setShowDebugInfo(!showDebugInfo)}
+            >
+              <i className={`fa-solid ${showDebugInfo ? 'fa-bug-slash' : 'fa-bug'}`}></i> 
+              {showDebugInfo ? 'Hide' : 'Show'} Raw Analysis
+            </button>
           </div>
           
           {previewUrl && showPreview && (
@@ -265,6 +389,20 @@ export function ReceiptUploader() {
                   height={800}
                   style={{ objectFit: 'contain', width: '100%', height: 'auto' }}
                 />
+              )}
+            </div>
+          )}
+          
+          {showDebugInfo && analysisText && (
+            <div className={styles.rawAnalysis}>
+              <h3>Raw GPT-4o-mini Analysis</h3>
+              <pre>{analysisText}</pre>
+              
+              {receiptJSON && (
+                <>
+                  <h3>Parsed JSON</h3>
+                  <pre>{JSON.stringify(receiptJSON, null, 2)}</pre>
+                </>
               )}
             </div>
           )}
