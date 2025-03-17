@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import OpenAI from "openai";
-import sharp from 'sharp';
 
 // API route configuration
 export const runtime = 'edge';
@@ -43,15 +42,10 @@ export async function POST(request: Request) {
 
     console.log('Processing file:', file.name, file.type, file.size);
 
-    // Convert the file to buffer
+    // Convert the file to base64 directly without preprocessing
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    
-    // Preprocess the image
-    const processedImageBuffer = await preprocessImage(buffer);
-    
-    // Convert processed image to base64
-    const base64Image = processedImageBuffer.toString('base64');
+    const base64Image = buffer.toString('base64');
 
     console.log('Sending request to OpenAI API');
     
@@ -111,35 +105,5 @@ Please format your response in a clear, readable way with section headers. Be as
       { error: error instanceof Error ? error.message : 'Error processing receipt' },
       { status: 500 }
     );
-  }
-}
-
-// Function to preprocess the image for better OCR
-async function preprocessImage(imageBuffer: Buffer): Promise<Buffer> {
-  try {
-    // Use sharp for image processing
-    const processedImage = await sharp(imageBuffer)
-      // Convert to grayscale
-      .grayscale()
-      // Increase contrast
-      .normalize()
-      // Sharpen the image
-      .sharpen({
-        sigma: 1.5,
-        m1: 1.5,
-        m2: 1.5,
-        x1: 1.5,
-        y2: 1.5,
-        y3: 1.5
-      })
-      // Ensure consistent format
-      .jpeg({ quality: 90 })
-      .toBuffer();
-    
-    return processedImage;
-  } catch (error) {
-    console.error('Error preprocessing image:', error);
-    // Return original image if preprocessing fails
-    return imageBuffer;
   }
 } 
