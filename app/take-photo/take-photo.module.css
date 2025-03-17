@@ -1,0 +1,217 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem;
+  min-height: calc(100vh - 64px);
+  background-color: #f9f9f9;
+}
+
+.logoSquare {
+  width: 64px;
+  height: 64px;
+  background-color: #fff;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.headlineLockup {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.subtitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #EAA300;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #333;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.receiptContainer {
+  width: 100%;
+  max-width: 600px;
+  margin: 2rem 0;
+}
+
+.receiptHero {
+  background-color: #fff;
+  border-radius: 16px;
+  padding: 2rem;
+  text-align: center;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.heroText {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #333;
+  line-height: 1.4;
+  margin-bottom: 2rem;
+}
+
+.highlight {
+  color: #EAA300;
+}
+
+.uploadButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: #EAA300;
+  color: white;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.uploadButton:hover {
+  background-color: #d99200;
+}
+
+.cameraContainer {
+  width: 100%;
+  max-width: 600px;
+  margin: 1rem 0;
+  position: relative;
+}
+
+.cameraPreview {
+  width: 100%;
+  height: 400px;
+  background-color: #000;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.cameraControls {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.captureButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  background-color: #EAA300;
+  color: white;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.captureButton:hover {
+  background-color: #d99200;
+}
+
+.switchCameraButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #333;
+  color: white;
+  padding: 0.5rem;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.switchCameraButton:hover {
+  background-color: #555;
+}
+
+.footer {
+  margin-top: auto;
+  padding: 1rem 0;
+  text-align: center;
+}
+
+.footerText {
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.footerLink {
+  color: #EAA300;
+  text-decoration: none;
+}
+
+.footerLink:hover {
+  text-decoration: underline;
+}
+
+/* Loading state */
+.loadingOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.spinner {
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  border-top: 4px solid #EAA300;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+.loadingText {
+  font-size: 1rem;
+  color: #333;
+  font-weight: 600;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Results section */
+.resultsContainer {
+  width: 100%;
+  max-width: 600px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .title {
+    font-size: 1.5rem;
+  }
+  
+  .heroText {
+    font-size: 1.25rem;
+  }
+  
+  .receiptHero {
+    padding: 1.5rem;
+  }
+} 
