@@ -12,6 +12,113 @@ if (!supabaseUrl || !supabaseServiceKey) {
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// Function to find cheaper alternatives for items
+async function findCheaperAlternatives(items: any[], storeName: string) {
+  const itemsWithAlternatives = [];
+  
+  for (const item of items) {
+    // Skip items without a name or price
+    if (!item.name || !item.price) continue;
+    
+    // Standardize the item name for better matching
+    // This is a simple implementation - you might want to use more sophisticated NLP
+    const standardizedName = standardizeItemName(item.name);
+    
+    // Look for the same item at other stores
+    const { data: alternatives, error } = await supabase
+      .from('product_prices')
+      .select('store_name, price, standardized_item_name')
+      .eq('standardized_item_name', standardizedName)
+      .neq('store_name', storeName)
+      .order('price', { ascending: true })
+      .limit(5);
+    
+    if (error) {
+      console.error('Error finding alternatives:', error);
+      continue;
+    }
+    
+    // Find the cheapest alternative
+    const cheaperAlternatives = alternatives?.filter(alt => alt.price < item.price) || [];
+    
+    if (cheaperAlternatives.length > 0) {
+      // Get the cheapest alternative
+      const cheapestAlternative = cheaperAlternatives[0];
+      
+      itemsWithAlternatives.push({
+        ...item,
+        cheaper_alternative: {
+          store_name: cheapestAlternative.store_name,
+          price: cheapestAlternative.price,
+          savings: item.price - cheapestAlternative.price
+        }
+      });
+    } else {
+      itemsWithAlternatives.push(item);
+    }
+  }
+  
+  return itemsWithAlternatives;
+}
+
+// Function to standardize item names
+function standardizeItemName(itemName: string): string {
+  // Convert to lowercase
+  let standardized = itemName.toLowerCase();
+  
+  // Remove common words and characters that don't affect the item identity
+  standardized = standardized.replace(/\b(the|a|an|of|with|in|for|by|at|from|to)\b/g, '');
+  
+  // Remove special characters and extra spaces
+  standardized = standardized.replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
+  
+  // Check if we have a standardization mapping in the database
+  // This is a placeholder - in a real implementation, you would query your database
+  
+  return standardized;
+}
+
+// Function to check if an item name matches a standardized name
+async function findStandardizedName(itemName: string): Promise<string | null> {
+  // First try to find an exact match in the standardization table
+  const { data: exactMatch, error: exactError } = await supabase
+    .from('item_standardization')
+    .select('standardized_name')
+    .eq('original_pattern', itemName.toLowerCase())
+    .limit(1);
+  
+  if (exactError) {
+    console.error('Error finding exact match:', exactError);
+    return null;
+  }
+  
+  if (exactMatch && exactMatch.length > 0) {
+    return exactMatch[0].standardized_name;
+  }
+  
+  // If no exact match, try pattern matching
+  const { data: patternMatches, error: patternError } = await supabase
+    .from('item_standardization')
+    .select('standardized_name, original_pattern');
+  
+  if (patternError) {
+    console.error('Error finding pattern matches:', patternError);
+    return null;
+  }
+  
+  if (patternMatches) {
+    for (const pattern of patternMatches) {
+      // Simple pattern matching - in a real implementation, you might use regex
+      if (itemName.toLowerCase().includes(pattern.original_pattern.toLowerCase())) {
+        return pattern.standardized_name;
+      }
+    }
+  }
+  
+  // If no match found, return the standardized version of the original name
+  return standardizeItemName(itemName);
+}
+
 export async function POST(request: Request) {
   try {
     console.log('Received request to upload receipt');
@@ -75,6 +182,14 @@ export async function POST(request: Request) {
     const purchaseDetails = parsedReceiptData.purchase_details || {};
     const financialSummary = parsedReceiptData.financial_summary || {};
     
+    // Find cheaper alternatives for items
+    if (parsedReceiptData.items && parsedReceiptData.items.length > 0 && storeInfo.name) {
+      parsedReceiptData.items = await findCheaperAlternatives(
+        parsedReceiptData.items, 
+        storeInfo.name
+      );
+    }
+    
     // Insert the receipt record into the database
     const { data: receiptRecord, error: dbError } = await supabase
       .from('receipts')
@@ -107,13 +222,20 @@ export async function POST(request: Request) {
     
     // Insert receipt items
     if (parsedReceiptData.items && parsedReceiptData.items.length > 0) {
-      const receiptItems = parsedReceiptData.items.map((item: any) => ({
-        receipt_id: receiptRecord.id,
-        original_item_name: item.name || 'Unknown Item',
-        item_price: item.price || 0,
-        quantity: item.quantity || 1,
-        regular_price: item.regular_price || item.price || 0,
-        final_price: item.final_price || (item.price * (item.quantity || 1)) || 0
+      const receiptItems = await Promise.all(parsedReceiptData.items.map(async (item: any) => {
+        // Try to find a standardized name for this item
+        const standardizedName = await findStandardizedName(item.name || '');
+        
+        return {
+          receipt_id: receiptRecord.id,
+          original_item_name: item.name || 'Unknown Item',
+          standardized_item_name: standardizedName,
+          item_price: item.price || 0,
+          quantity: item.quantity || 1,
+          regular_price: item.regular_price || item.price || 0,
+          final_price: item.final_price || (item.price * (item.quantity || 1)) || 0,
+          cheaper_alternative: item.cheaper_alternative ? JSON.stringify(item.cheaper_alternative) : null
+        };
       }));
       
       const { error: itemsError } = await supabase
@@ -157,7 +279,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       receipt_id: receiptRecord.id,
-      image_url: publicUrl
+      image_url: publicUrl,
+      receipt_data: parsedReceiptData // Return the updated receipt data with alternatives
     });
     
   } catch (error) {

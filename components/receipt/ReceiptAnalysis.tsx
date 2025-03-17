@@ -22,6 +22,11 @@ interface ReceiptJSON {
       amount: number;
     }>;
     final_price: number;
+    cheaper_alternative?: {
+      store_name: string;
+      price: number;
+      savings: number;
+    };
   }>;
   taxes: Array<{
     category: string;
@@ -64,6 +69,19 @@ interface ReceiptAnalysisProps {
   receiptJSON?: ReceiptJSON;
 }
 
+interface CheaperAlternative {
+  store_name: string;
+  price: number;
+  savings: number;
+}
+
+interface ReceiptItem {
+  id: string;
+  name: string;
+  price: string;
+  cheaper_alternative?: CheaperAlternative;
+}
+
 export function ReceiptAnalysis({ analysisText, receiptJSON }: ReceiptAnalysisProps) {
   // Log the received data for debugging
   console.log("ReceiptAnalysis component received:");
@@ -75,7 +93,18 @@ export function ReceiptAnalysis({ analysisText, receiptJSON }: ReceiptAnalysisPr
   }
   
   // Legacy parsing function for backward compatibility
-  const parseAnalysis = (text: string) => {
+  const parseAnalysis = (text: string): {
+    store: string;
+    address: string;
+    phone: string;
+    date: string;
+    items: ReceiptItem[];
+    taxes: { name: string; amount: string }[];
+    totals: { subtotal: string; tax: string; total: string };
+    payment: string;
+    savings: string;
+    returnPolicy: string;
+  } => {
     console.log("Raw analysis text:", text);
     
     // Extract store name
@@ -110,7 +139,7 @@ export function ReceiptAnalysis({ analysisText, receiptJSON }: ReceiptAnalysisPr
     // Format 2: "Item Name - $Price"
     const itemRegex = /(?:\d+\.\s+)?(.*?)\s+-\s+\$([\d.]+)/g;
     
-    const items = [];
+    const items: ReceiptItem[] = [];
     let itemMatch;
     let itemId = 1;
     
@@ -224,11 +253,24 @@ export function ReceiptAnalysis({ analysisText, receiptJSON }: ReceiptAnalysisPr
     address: receiptJSON.store_information.address || '',
     phone: receiptJSON.store_information.phone_number || '',
     date: `${receiptJSON.purchase_details.date || ''}${receiptJSON.purchase_details.time ? ' at ' + receiptJSON.purchase_details.time : ''}`,
-    items: receiptJSON.items.map((item, index) => ({
-      id: (index + 1).toString().padStart(2, '0'),
-      name: item.name || 'Unknown Item',
-      price: `$${(item.final_price || 0).toFixed(2)}`
-    })),
+    items: receiptJSON.items.map((item, index) => {
+      const result: ReceiptItem = {
+        id: (index + 1).toString().padStart(2, '0'),
+        name: item.name || 'Unknown Item',
+        price: `$${(item.final_price || 0).toFixed(2)}`
+      };
+      
+      // Add cheaper alternative if available
+      if (item.cheaper_alternative) {
+        result.cheaper_alternative = {
+          store_name: item.cheaper_alternative.store_name,
+          price: item.cheaper_alternative.price,
+          savings: item.cheaper_alternative.savings
+        };
+      }
+      
+      return result;
+    }),
     taxes: receiptJSON.taxes ? receiptJSON.taxes.map(tax => ({
       name: tax.category || 'Tax',
       amount: `$${(tax.amount || 0).toFixed(2)}`
@@ -278,22 +320,38 @@ export function ReceiptAnalysis({ analysisText, receiptJSON }: ReceiptAnalysisPr
             <>
               <div className={styles.receiptSectionHeader}>Items</div>
               {receiptData.items.map((item) => (
-                <div key={item.id} className={styles.receiptItem}>
-                  <div className={styles.receiptNumber}>{item.id}</div>
-                  <div className={styles.receiptName}>
-                    {item.name}
-                    {receiptJSON && 
-                     receiptJSON.items && 
-                     parseInt(item.id) > 0 &&
-                     parseInt(item.id) <= receiptJSON.items.length && 
-                     receiptJSON.items[parseInt(item.id) - 1] && 
-                     receiptJSON.items[parseInt(item.id) - 1].quantity > 1 && (
-                      <span className={styles.receiptQuantity}>
-                        x{receiptJSON.items[parseInt(item.id) - 1].quantity}
-                      </span>
-                    )}
+                <div key={item.id} className={`${styles.receiptItem} ${item.cheaper_alternative ? styles.receiptItemSavings : ''}`}>
+                  <div className={styles.receiptItemMain}>
+                    <div className={styles.receiptNumber}>{item.id}</div>
+                    <div className={styles.receiptName}>
+                      {item.name}
+                      {receiptJSON && 
+                       receiptJSON.items && 
+                       parseInt(item.id) > 0 &&
+                       parseInt(item.id) <= receiptJSON.items.length && 
+                       receiptJSON.items[parseInt(item.id) - 1] && 
+                       receiptJSON.items[parseInt(item.id) - 1].quantity > 1 && (
+                        <span className={styles.receiptQuantity}>
+                          x{receiptJSON.items[parseInt(item.id) - 1].quantity}
+                        </span>
+                      )}
+                    </div>
+                    <div className={`${styles.receiptPrice} ${item.cheaper_alternative ? styles.receiptPriceStrike : ''}`}>
+                      {item.price}
+                    </div>
                   </div>
-                  <div className={styles.receiptPrice}>{item.price}</div>
+                  
+                  {item.cheaper_alternative && (
+                    <div className={styles.savingsRow}>
+                      <div className={styles.receiptNumber}>
+                        <i className="fa-solid fa-piggy-bank" aria-hidden="true"></i>
+                      </div>
+                      <span>Better price at {item.cheaper_alternative.store_name}</span>
+                      <span className={styles.savingsPrice}>
+                        ${item.cheaper_alternative.price.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               ))}
               
