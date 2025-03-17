@@ -6,7 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
-import { PiggyBank, Receipt } from 'lucide-react';
+import { PiggyBank, Receipt, DollarSign } from 'lucide-react';
 // import { supabase } from '@/utils/supabase';
 
 // TopBar component handles user profile display and navigation
@@ -37,6 +37,11 @@ export default function TopBar() {
       name: 'Take Photo',
       href: '/take-photo',
       icon: Receipt
+    },
+    {
+      name: 'Price Comparison',
+      href: '/price-comparison',
+      icon: DollarSign
     }
   ];
 
