@@ -33,16 +33,27 @@ Once set up, you can access the price comparison feature in two ways:
 
 The price comparison page includes:
 
+- **View Toggle**: Switch between viewing items with cheaper alternatives and all uploaded items
 - **Summary Cards**: Shows the number of items with cheaper alternatives, total potential savings, and average savings per item
 - **Category Filters**: Filter items by category (Produce, Meat, Dairy, etc.)
 - **Sortable Table**: View all items with cheaper alternatives, sorted by percentage savings
 - **Store Information**: See which stores offer the best prices for each item
+
+### View All Uploaded Items
+
+The page now includes a toggle to switch to viewing all uploaded items:
+
+- **All Items View**: Shows all items you've uploaded across all receipts
+- **Summary Statistics**: Displays total items, unique products, and number of stores visited
+- **Category Filtering**: Filter items by category, just like in the comparison view
+- **Price Sorting**: Items are sorted by price (lowest first) to help identify good deals
 
 ## How to Use the Results
 
 - **Plan Future Shopping**: Use the information to plan where to buy specific items
 - **Maximize Savings**: Focus on items with the highest percentage savings
 - **Compare Stores**: Identify which stores consistently offer better prices for certain categories
+- **Track Purchases**: Use the all items view to see your complete purchase history
 
 ## Technical Details
 
