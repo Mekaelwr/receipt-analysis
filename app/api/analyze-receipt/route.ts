@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import sharp from 'sharp';
 
 // API route configuration
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || '',
