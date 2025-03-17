@@ -12,7 +12,8 @@ const PUBLIC_ROUTES = [
   '/signup', 
   '/verify-email', 
   '/reset-password', 
-  '/update-password'
+  '/update-password',
+  '/take-photo'  // Add take-photo route to public routes
 ];
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {

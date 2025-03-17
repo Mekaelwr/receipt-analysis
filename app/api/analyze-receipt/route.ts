@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { OpenAI } from 'openai';
+import OpenAI from "openai";
+import sharp from 'sharp';
 
 // API route configuration
-export const runtime = 'edge';
+export const runtime = 'nodejs';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || '',
@@ -42,22 +43,39 @@ export async function POST(request: Request) {
 
     console.log('Processing file:', file.name, file.type, file.size);
 
-    // Convert the file to base64
+    // Convert the file to buffer
     const bytes = await file.arrayBuffer();
-    const base64Image = Buffer.from(bytes).toString('base64');
-
-    console.log('Sending request to OpenAI Vision API');
+    const buffer = Buffer.from(bytes);
     
-    // Analyze the image using GPT-4 Vision
+    // Preprocess the image
+    const processedImageBuffer = await preprocessImage(buffer);
+    
+    // Convert processed image to base64
+    const base64Image = processedImageBuffer.toString('base64');
+
+    console.log('Sending request to OpenAI API');
+    
+    // Analyze the image using GPT-4o-mini
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: "Analyze this receipt and return a valid JSON object. The response should start with { and end with }. Include only these fields: storeName (string), date (string), items (array of objects with name and price), subtotal (number), tax (number), total (number). Example format: {\"storeName\":\"Store Name\",\"date\":\"2024-03-04\",\"items\":[{\"name\":\"Item 1\",\"price\":10.99}],\"subtotal\":10.99,\"tax\":0.88,\"total\":11.87}. Do not include any other text, formatting, or explanation."
+              text: `Analyze this receipt image in detail. I need you to extract:
+
+1. Store name
+2. Store address (if available)
+3. Store phone number (if available)
+4. Purchase date and time
+5. All purchased items with their names and prices
+6. Any tax information
+7. Subtotal amount
+8. Total amount
+
+Please format your response in a clear, readable way with section headers. Be as detailed and accurate as possible. Include every item you can see on the receipt.`
             },
             {
               type: "image_url",
@@ -68,11 +86,12 @@ export async function POST(request: Request) {
           ]
         }
       ],
-      max_tokens: 500
+      max_tokens: 2048,
+      temperature: 0.7,
     });
 
     console.log('Received response from OpenAI');
-
+    
     const messageContent = response.choices[0].message.content;
     if (!messageContent) {
       console.error('No response content from OpenAI');
@@ -80,24 +99,11 @@ export async function POST(request: Request) {
     }
 
     console.log('Raw response:', messageContent);
-
-    // Clean the response to remove any markdown formatting and extra whitespace
-    const cleanContent = messageContent
-      .replace(/```json\s*|\s*```/g, '') // Remove markdown code blocks
-      .replace(/^\s+|\s+$/g, '') // Trim whitespace
-      .replace(/^[^{]*({.*})[^}]*$/, '$1'); // Extract only the JSON object
-
-    console.log('Cleaned content:', cleanContent);
-
-    try {
-      const analyzedData = JSON.parse(cleanContent);
-      console.log('Successfully parsed receipt data:', analyzedData);
-      return NextResponse.json(analyzedData);
-    } catch (parseError) {
-      console.error('JSON parse error:', parseError);
-      console.error('Failed to parse content:', cleanContent);
-      throw new Error('Failed to parse receipt data as JSON');
-    }
+    
+    // Return just the raw text
+    return NextResponse.json({
+      analysis: messageContent
+    });
 
   } catch (error) {
     console.error('Error processing receipt:', error);
@@ -105,5 +111,35 @@ export async function POST(request: Request) {
       { error: error instanceof Error ? error.message : 'Error processing receipt' },
       { status: 500 }
     );
+  }
+}
+
+// Function to preprocess the image for better OCR
+async function preprocessImage(imageBuffer: Buffer): Promise<Buffer> {
+  try {
+    // Use sharp for image processing
+    const processedImage = await sharp(imageBuffer)
+      // Convert to grayscale
+      .grayscale()
+      // Increase contrast
+      .normalize()
+      // Sharpen the image
+      .sharpen({
+        sigma: 1.5,
+        m1: 1.5,
+        m2: 1.5,
+        x1: 1.5,
+        y2: 1.5,
+        y3: 1.5
+      })
+      // Ensure consistent format
+      .jpeg({ quality: 90 })
+      .toBuffer();
+    
+    return processedImage;
+  } catch (error) {
+    console.error('Error preprocessing image:', error);
+    // Return original image if preprocessing fails
+    return imageBuffer;
   }
 } 

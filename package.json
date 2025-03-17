@@ -26,7 +26,7 @@
     "lodash": "^4.17.21",
     "lucide-react": "^0.475.0",
     "next": "15.1.3",
-    "openai": "^4.86.1",
+    "openai": "^4.87.3",
     "posthog-js": "^1.219.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -34,6 +34,7 @@
     "react-icons": "^5.4.0",
     "react-intersection-observer": "^9.15.1",
     "react-scroll": "^1.9.2",
+    "sharp": "^0.33.5",
     "stripe": "^17.5.0"
   },
   "devDependencies": {
