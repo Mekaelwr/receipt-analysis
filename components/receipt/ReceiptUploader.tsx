@@ -259,13 +259,13 @@ export function ReceiptUploader() {
     }
     
     // Check if items is an array
-    if (!Array.isArray((json as any).items)) {
+    if (!Array.isArray((json as Record<string, unknown>).items)) {
       console.error('Items property is not an array');
       return false;
     }
     
     // Check if taxes is an array (if present)
-    if ((json as any).taxes && !Array.isArray((json as any).taxes)) {
+    if ((json as Record<string, unknown>).taxes && !Array.isArray((json as Record<string, unknown>).taxes)) {
       console.error('Taxes property is not an array');
       return false;
     }
