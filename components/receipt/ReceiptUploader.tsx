@@ -240,7 +240,7 @@ export function ReceiptUploader() {
   };
 
   // Function to validate the receipt JSON structure
-  const validateReceiptJSON = (json: any): boolean => {
+  const validateReceiptJSON = (json: Record<string, unknown>): boolean => {
     if (!json) return false;
     
     // Check for required top-level properties
@@ -259,13 +259,13 @@ export function ReceiptUploader() {
     }
     
     // Check if items is an array
-    if (!Array.isArray(json.items)) {
+    if (!Array.isArray((json as any).items)) {
       console.error('Items property is not an array');
       return false;
     }
     
     // Check if taxes is an array (if present)
-    if (json.taxes && !Array.isArray(json.taxes)) {
+    if ((json as any).taxes && !Array.isArray((json as any).taxes)) {
       console.error('Taxes property is not an array');
       return false;
     }

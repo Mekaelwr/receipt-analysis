@@ -119,8 +119,8 @@ function parseReceiptText(text: string): ReceiptJSON {
     // Simple direct extraction approach - extract all lines with key-value pairs
     const lines = text.split('\n');
     let currentSection = '';
-    let itemsList: any[] = [];
-    let taxesList: any[] = [];
+    const itemsList: Array<string> = [];
+    const taxesList: Array<string> = [];
     
     // First pass - extract simple key-value pairs
     for (const line of lines) {
