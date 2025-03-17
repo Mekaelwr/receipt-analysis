@@ -39,20 +39,29 @@ export async function GET() {
     console.log("Price comparison API called");
     
     // Check if the database function exists
-    const { data: functionExists, error: functionCheckError } = await supabase.rpc(
-      'get_items_with_cheaper_alternatives',
-      {},
-      { count: 'exact', head: true }
-    ).catch(err => {
-      console.error("Error checking if function exists:", err);
-      return { data: null, error: err };
-    });
+    let functionExists = false;
+    let functionCheckError = null;
+    
+    try {
+      const result = await supabase.rpc(
+        'get_items_with_cheaper_alternatives',
+        {},
+        { count: 'exact', head: true }
+      );
+      functionCheckError = result.error;
+    } catch (err) {
+      functionCheckError = err;
+    }
     
     if (functionCheckError) {
       console.error("Function check error:", functionCheckError);
       
       // Check if the error is because the function doesn't exist
-      if (functionCheckError.message.includes('function') && functionCheckError.message.includes('does not exist')) {
+      const errorMessage = functionCheckError instanceof Error 
+        ? functionCheckError.message 
+        : String(functionCheckError);
+        
+      if (errorMessage.includes('function') && errorMessage.includes('does not exist')) {
         return NextResponse.json(
           { 
             error: 'Database function not found', 
@@ -129,7 +138,16 @@ export async function GET() {
       
       for (const item of userItems) {
         const unitPrice = item.final_price / (item.quantity || 1);
-        const storeName = item.receipts?.store_name;
+        
+        // Handle the receipts data structure safely
+        let storeName = null;
+        if (item.receipts) {
+          if (Array.isArray(item.receipts) && item.receipts.length > 0) {
+            storeName = item.receipts[0].store_name;
+          } else if (typeof item.receipts === 'object' && item.receipts !== null) {
+            storeName = (item.receipts as any).store_name;
+          }
+        }
         
         if (!storeName || !item.standardized_item_name) continue;
         

@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "next lint",
     "db:setup-price-comparison": "psql -f sql/get_items_with_cheaper_alternatives.sql",
-    "check:price-comparison": "npx ts-node scripts/check-price-comparison-setup.ts"
+    "check:price-comparison": "node scripts/check-price-comparison-setup.js",
+    "setup:price-comparison": "node scripts/setup-price-comparison.js"
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.4",
