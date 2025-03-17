@@ -36,46 +36,100 @@ interface ProcessedItem {
 
 export async function GET() {
   try {
-    // Get user's purchased items with their prices and stores
-    const { data: userItems, error: userItemsError } = await supabase
-      .from('receipt_items')
-      .select(`
-        standardized_item_name,
-        final_price,
-        quantity,
-        category,
-        receipts:receipt_id (
-          store_name
-        )
-      `)
-      .not('standardized_item_name', 'is', null);
-
-    if (userItemsError) {
-      throw userItemsError;
-    }
-
-    // Get cheapest prices for each standardized item across all stores
-    const { data: cheapestPrices, error: cheapestPricesError } = await supabase
-      .from('item_price_comparison')
-      .select('standardized_item_name, store_name, min_price')
-      .gt('min_price', 0);
-
-    if (cheapestPricesError) {
-      throw cheapestPricesError;
-    }
-
-    // Process the data to find items with cheaper alternatives
-    const processedItems = [];
+    console.log("Price comparison API called");
     
-    if (userItems && cheapestPrices) {
+    // Check if the database function exists
+    const { data: functionExists, error: functionCheckError } = await supabase.rpc(
+      'get_items_with_cheaper_alternatives',
+      {},
+      { count: 'exact', head: true }
+    ).catch(err => {
+      console.error("Error checking if function exists:", err);
+      return { data: null, error: err };
+    });
+    
+    if (functionCheckError) {
+      console.error("Function check error:", functionCheckError);
+      
+      // Check if the error is because the function doesn't exist
+      if (functionCheckError.message.includes('function') && functionCheckError.message.includes('does not exist')) {
+        return NextResponse.json(
+          { 
+            error: 'Database function not found', 
+            message: 'The required database function "get_items_with_cheaper_alternatives" does not exist. Please run "npm run db:setup-price-comparison" to set it up.',
+            details: functionCheckError
+          },
+          { status: 500 }
+        );
+      }
+      
+      throw functionCheckError;
+    }
+    
+    // Try to get data from the function
+    const { data, error } = await supabase.rpc('get_items_with_cheaper_alternatives');
+    
+    if (error) {
+      console.error("Error calling function:", error);
+      throw error;
+    }
+    
+    // If no data is returned, try a direct query approach
+    if (!data || data.length === 0) {
+      console.log("No data from function, trying direct query");
+      
+      // Get user's purchased items with their prices and stores
+      const { data: userItems, error: userItemsError } = await supabase
+        .from('receipt_items')
+        .select(`
+          standardized_item_name,
+          final_price,
+          quantity,
+          category,
+          receipts:receipt_id (
+            store_name
+          )
+        `)
+        .not('standardized_item_name', 'is', null);
+
+      if (userItemsError) {
+        console.error("Error fetching user items:", userItemsError);
+        throw userItemsError;
+      }
+
+      // Get cheapest prices for each standardized item across all stores
+      const { data: cheapestPrices, error: cheapestPricesError } = await supabase
+        .from('item_price_comparison')
+        .select('standardized_item_name, store_name, min_price')
+        .gt('min_price', 0);
+
+      if (cheapestPricesError) {
+        console.error("Error fetching cheapest prices:", cheapestPricesError);
+        throw cheapestPricesError;
+      }
+      
+      console.log(`Found ${userItems?.length || 0} user items and ${cheapestPrices?.length || 0} price comparison records`);
+      
+      // If we don't have enough data for comparison, return diagnostic info
+      if (!userItems?.length || !cheapestPrices?.length) {
+        return NextResponse.json(
+          { 
+            items: [], 
+            diagnostics: {
+              userItemsCount: userItems?.length || 0,
+              cheapestPricesCount: cheapestPrices?.length || 0,
+              message: "Not enough data for price comparison. Upload more receipts or run the standardization process."
+            }
+          }
+        );
+      }
+
+      // Process the data to find items with cheaper alternatives
+      const processedItems = [];
+      
       for (const item of userItems) {
         const unitPrice = item.final_price / (item.quantity || 1);
-        
-        // Access store_name correctly based on the actual structure
-        let storeName = null;
-        if (item.receipts && Array.isArray(item.receipts) && item.receipts.length > 0) {
-          storeName = item.receipts[0].store_name;
-        }
+        const storeName = item.receipts?.store_name;
         
         if (!storeName || !item.standardized_item_name) continue;
         
@@ -105,26 +159,39 @@ export async function GET() {
           });
         }
       }
-    }
-    
-    // Remove duplicates (keep the one with highest savings for each item)
-    const uniqueItemsMap = new Map();
-    
-    for (const item of processedItems) {
-      const existingItem = uniqueItemsMap.get(item.item_name);
       
-      if (!existingItem || item.percentage_savings > existingItem.percentage_savings) {
-        uniqueItemsMap.set(item.item_name, item);
+      // Remove duplicates (keep the one with highest savings for each item)
+      const uniqueItemsMap = new Map();
+      
+      for (const item of processedItems) {
+        const existingItem = uniqueItemsMap.get(item.item_name);
+        
+        if (!existingItem || item.percentage_savings > existingItem.percentage_savings) {
+          uniqueItemsMap.set(item.item_name, item);
+        }
       }
+      
+      const uniqueItems = Array.from(uniqueItemsMap.values());
+      
+      return NextResponse.json(uniqueItems);
     }
     
-    const uniqueItems = Array.from(uniqueItemsMap.values());
-    
-    return NextResponse.json(uniqueItems);
-  } catch (error) {
+    return NextResponse.json(data);
+  } catch (error: any) {
     console.error('Error in price comparison API:', error);
+    
+    // Provide detailed error information
     return NextResponse.json(
-      { error: 'Failed to retrieve price comparison data' },
+      { 
+        error: 'Failed to retrieve price comparison data',
+        message: error.message || 'Unknown error',
+        details: {
+          code: error.code,
+          hint: error.hint,
+          details: error.details,
+          stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        }
+      },
       { status: 500 }
     );
   }

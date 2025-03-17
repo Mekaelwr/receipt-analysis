@@ -8,6 +8,8 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function GET() {
   try {
+    console.log("All items API called");
+    
     // First, get all receipt items
     const { data: items, error: itemsError } = await supabase
       .from('receipt_items')
@@ -23,7 +25,22 @@ export async function GET() {
       .not('standardized_item_name', 'is', null);
 
     if (itemsError) {
+      console.error("Error fetching receipt items:", itemsError);
       throw itemsError;
+    }
+    
+    console.log(`Found ${items?.length || 0} receipt items`);
+    
+    // If no items found, return diagnostic info
+    if (!items?.length) {
+      return NextResponse.json(
+        { 
+          items: [], 
+          diagnostics: {
+            message: "No standardized items found. Upload receipts and run the standardization process."
+          }
+        }
+      );
     }
 
     // Get all receipts to join manually
@@ -32,8 +49,11 @@ export async function GET() {
       .select('id, store_name, purchase_date');
 
     if (receiptsError) {
+      console.error("Error fetching receipts:", receiptsError);
       throw receiptsError;
     }
+    
+    console.log(`Found ${receipts?.length || 0} receipts`);
 
     // Create a map of receipts by ID for faster lookup
     const receiptsMap = new Map();
@@ -61,10 +81,21 @@ export async function GET() {
     });
     
     return NextResponse.json(processedItems);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in all-items API:', error);
+    
+    // Provide detailed error information
     return NextResponse.json(
-      { error: 'Failed to retrieve items data' },
+      { 
+        error: 'Failed to retrieve items data',
+        message: error.message || 'Unknown error',
+        details: {
+          code: error.code,
+          hint: error.hint,
+          details: error.details,
+          stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        }
+      },
       { status: 500 }
     );
   }

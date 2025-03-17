@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 
 // Define types
 interface PriceComparison {
@@ -34,6 +36,7 @@ export default function PriceComparisonPage() {
   const [allItems, setAllItems] = useState<AllItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('all');
   const [categories, setCategories] = useState<string[]>([]);
   const [showAllItems, setShowAllItems] = useState(false);
@@ -42,32 +45,44 @@ export default function PriceComparisonPage() {
     async function fetchData() {
       try {
         setLoading(true);
+        console.log("Fetching price comparison data...");
         
         // Fetch price comparison data
         const comparisonResponse = await fetch('/api/price-comparison');
+        console.log("Price comparison response status:", comparisonResponse.status);
         
         if (!comparisonResponse.ok) {
-          throw new Error(`HTTP error! Status: ${comparisonResponse.status}`);
+          const errorText = await comparisonResponse.text();
+          console.error("Price comparison API error:", errorText);
+          throw new Error(`HTTP error! Status: ${comparisonResponse.status}, Details: ${errorText}`);
         }
         
         const comparisonData = await comparisonResponse.json();
+        console.log("Price comparison data:", comparisonData);
         
         if (Array.isArray(comparisonData)) {
           setComparisons(comparisonData);
+          setDebugInfo(prev => ({...prev, comparisonData}));
           
           // Extract unique categories from comparison data
           const comparisonCategories = Array.from(
             new Set(comparisonData.map(item => item.category))
           ).filter(Boolean);
           
+          console.log("Fetching all items data...");
           // Fetch all items data
           const allItemsResponse = await fetch('/api/all-items');
+          console.log("All items response status:", allItemsResponse.status);
           
           if (!allItemsResponse.ok) {
-            throw new Error(`HTTP error! Status: ${allItemsResponse.status}`);
+            const errorText = await allItemsResponse.text();
+            console.error("All items API error:", errorText);
+            throw new Error(`HTTP error! Status: ${allItemsResponse.status}, Details: ${errorText}`);
           }
           
           const allItemsData = await allItemsResponse.json();
+          console.log("All items data:", allItemsData);
+          setDebugInfo(prev => ({...prev, allItemsData}));
           
           if (Array.isArray(allItemsData)) {
             setAllItems(allItemsData);
@@ -89,9 +104,10 @@ export default function PriceComparisonPage() {
         } else {
           throw new Error('Invalid data format received from price-comparison API');
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error fetching data:', err);
-        setError('Failed to load data. Please try again later.');
+        setError(err.message || 'Failed to load data. Please try again later.');
+        setDebugInfo(prev => ({...prev, error: err.toString(), stack: err.stack}));
       } finally {
         setLoading(false);
       }
@@ -125,9 +141,36 @@ export default function PriceComparisonPage() {
     0
   );
 
+  // Check if we have any data to display
+  const hasNoData = !loading && comparisons.length === 0 && allItems.length === 0;
+
   return (
     <div className="container mx-auto py-8">
       <h1 className="text-3xl font-bold mb-6">Price Comparison: Find Better Deals</h1>
+      
+      {/* Debug Information */}
+      {hasNoData && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>No data available</AlertTitle>
+          <AlertDescription>
+            <p>No price comparison data or items were found. This could be due to:</p>
+            <ul className="list-disc pl-5 mt-2">
+              <li>No receipts have been uploaded yet</li>
+              <li>Item names haven't been standardized</li>
+              <li>The database function hasn't been set up correctly</li>
+            </ul>
+            <p className="mt-2">Try running: <code>npm run db:setup-price-comparison</code></p>
+            
+            <details className="mt-4">
+              <summary className="cursor-pointer font-medium">Technical Details (Click to expand)</summary>
+              <pre className="mt-2 p-4 bg-gray-100 rounded text-xs overflow-auto max-h-60">
+                {JSON.stringify(debugInfo, null, 2)}
+              </pre>
+            </details>
+          </AlertDescription>
+        </Alert>
+      )}
       
       {/* View Toggle */}
       <div className="flex items-center space-x-2 mb-6">
@@ -140,6 +183,23 @@ export default function PriceComparisonPage() {
           {showAllItems ? "Showing all uploaded items" : "Showing items with cheaper alternatives"}
         </Label>
       </div>
+      
+      {/* Error Display */}
+      {error && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>
+            {error}
+            <details className="mt-2">
+              <summary className="cursor-pointer font-medium">Technical Details (Click to expand)</summary>
+              <pre className="mt-2 p-4 bg-gray-100 rounded text-xs overflow-auto max-h-60">
+                {JSON.stringify(debugInfo, null, 2)}
+              </pre>
+            </details>
+          </AlertDescription>
+        </Alert>
+      )}
       
       {/* Summary Cards */}
       {!showAllItems && (
