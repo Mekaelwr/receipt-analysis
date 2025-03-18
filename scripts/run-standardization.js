@@ -1,18 +1,31 @@
 const { createClient } = require('@supabase/supabase-js');
 const { OpenAI } = require('openai');
-require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+const dotenv = require('dotenv');
+
+// Load environment variables from .env.local
+const envPath = path.resolve(process.cwd(), '.env.local');
+if (fs.existsSync(envPath)) {
+  console.log(`Loading environment from ${envPath}`);
+  dotenv.config({ path: envPath });
+} else {
+  console.log('No .env.local file found, using process.env');
+  dotenv.config();
+}
 
 // Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !supabaseServiceKey) {
+if (!supabaseUrl || !supabaseKey) {
   console.error('Error: Missing Supabase credentials in environment variables.');
   console.error('Make sure NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set.');
   process.exit(1);
 }
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+console.log('Supabase credentials found, initializing client...');
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Initialize OpenAI client
 const openai = new OpenAI({

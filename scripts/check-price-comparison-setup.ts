@@ -24,17 +24,27 @@ async function checkPriceComparisonSetup() {
   try {
     // 1. Check if the database function exists
     console.log('Checking if database function exists...');
-    const { error: functionCheckError } = await supabase.rpc(
-      'get_items_with_cheaper_alternatives',
-      {},
-      { count: 'exact', head: true }
-    ).catch(err => {
-      return { data: null, error: err };
-    });
     
-    if (functionCheckError) {
+    // Use try-catch instead of .catch() for proper error handling
+    let functionExists = false;
+    let functionCheckError = null;
+    
+    try {
+      const result = await supabase.rpc(
+        'get_items_with_cheaper_alternatives',
+        {},
+        { count: 'exact', head: true }
+      );
+      functionExists = !result.error;
+    } catch (err) {
+      functionCheckError = err;
+    }
+    
+    if (!functionExists || functionCheckError) {
       console.log('❌ Database function not found or not accessible.');
-      console.log('Error details:', functionCheckError.message);
+      if (functionCheckError) {
+        console.log('Error details:', functionCheckError instanceof Error ? functionCheckError.message : String(functionCheckError));
+      }
       
       // Try to create the function
       console.log('\nAttempting to create the database function...');
@@ -135,14 +145,14 @@ async function checkPriceComparisonSetup() {
     
     console.log('\nSetup check complete!');
     
-  } catch (error: any) {
-    console.error('Error during setup check:', error.message);
+  } catch (error) {
+    console.error('Error during setup check:', error instanceof Error ? error.message : String(error));
     process.exit(1);
   }
 }
 
 // Run the check
 checkPriceComparisonSetup().catch(err => {
-  console.error('Unhandled error:', err);
+  console.error('Unhandled error:', err instanceof Error ? err.message : String(err));
   process.exit(1);
 }); 
