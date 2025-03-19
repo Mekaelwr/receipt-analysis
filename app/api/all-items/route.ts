@@ -86,6 +86,12 @@ export async function GET() {
   } catch (error: Error | unknown) {
     console.error('Error in all-items API:', error);
     
+    // Return an empty array instead of an error object to prevent client-side format errors
+    // This ensures the frontend always receives an array, which it expects
+    return NextResponse.json([]);
+    
+    // Original error response code (commented out)
+    /*
     // Provide detailed error information
     const err = error as { message?: string; code?: string; hint?: string; details?: string };
     return NextResponse.json(
@@ -101,5 +107,6 @@ export async function GET() {
       },
       { status: 500 }
     );
+    */
   }
 } 

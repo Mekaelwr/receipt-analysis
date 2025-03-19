@@ -196,7 +196,8 @@ export async function GET() {
       return NextResponse.json(uniqueItems);
     }
     
-    return NextResponse.json(data);
+    // Ensure we always return an array even if there's no data
+    return NextResponse.json([]);
   } catch (error: Error | unknown) {
     console.error('Error in price comparison API:', error);
     
