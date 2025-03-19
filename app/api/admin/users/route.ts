@@ -1,3 +1,4 @@
+import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getAllUsers, updateUserById, deleteUserById } from '@/utils/admin-db';

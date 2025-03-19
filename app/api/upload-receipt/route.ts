@@ -1,6 +1,12 @@
-import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
+import { writeFile } from 'fs/promises';
+import { v4 as uuidv4 } from 'uuid';
+import * as formidable from 'formidable';
+import path from 'path';
 import OpenAI from 'openai';
+
+export const runtime = 'edge';
 
 // Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

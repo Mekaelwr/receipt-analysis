@@ -4,6 +4,8 @@ import Stripe from 'stripe';
 import { supabaseAdmin } from '@/utils/supabase-admin';
 import { withCors } from '@/utils/cors';
 
+export const runtime = 'edge';
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
@@ -34,8 +36,6 @@ export const config = {
     bodyParser: false,
   },
 };
-
-export const runtime = 'edge';
 
 async function checkExistingSubscription(customerId: string): Promise<boolean> {
   const { data: existingSubs } = await supabaseAdmin
