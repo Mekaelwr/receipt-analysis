@@ -1,8 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import fs from 'fs';
-import path from 'path';
 
 export const runtime = 'edge';
 
@@ -168,76 +166,36 @@ export async function POST(request: Request) {
       );
     }
     
-    // Step 3: Save to a JSONL file
-    console.log("Step 3: Saving to JSONL file");
-    
-    const tempDir = path.join(process.cwd(), 'tmp');
-    
-    // Ensure the directory exists
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
-    }
-    
-    const filePath = path.join(tempDir, 'standardization_training.jsonl');
-    const fileContent = trainingExamples.map(example => JSON.stringify(example)).join('\n');
-    
-    fs.writeFileSync(filePath, fileContent);
-    
-    console.log(`Saved training file to ${filePath}`);
-    
-    // Step 4: Upload to OpenAI
-    console.log("Step 4: Uploading training file to OpenAI");
-    
-    const file = await openai.files.create({
-      file: fs.createReadStream(filePath),
-      purpose: "fine-tune"
-    });
-    
-    console.log(`Uploaded file with ID: ${file.id}`);
-    
-    // Step 5: Create a fine-tuning job
-    console.log("Step 5: Creating fine-tuning job");
-    
-    const fineTuningJob = await openai.fineTuning.jobs.create({
-      training_file: file.id,
-      model: "gpt-3.5-turbo",
-      suffix: "standardization-assistant"
-    });
-    
-    console.log(`Created fine-tuning job with ID: ${fineTuningJob.id}`);
-    
-    // Store the job information in our database for tracking
-    const { error: jobTrackingError } = await supabase
-      .from('ai_model_training_jobs')
+    // In Edge Runtime we can't use the file system, so we'll store the formatted data in Supabase
+    // Store the training data in Supabase
+    const { error: trainingDataError } = await supabase
+      .from('training_data_storage')
       .insert({
-        job_id: fineTuningJob.id,
-        file_id: file.id,
-        status: fineTuningJob.status,
-        model_name: fineTuningJob.fine_tuned_model || null,
-        training_examples_count: trainingExamples.length,
+        data: trainingExamples,
+        data_type: 'standardization_training',
         created_at: new Date().toISOString()
       });
       
-    if (jobTrackingError) {
-      console.error('Error tracking job:', jobTrackingError);
-      // Continue anyway as this is just for tracking
+    if (trainingDataError) {
+      console.error('Error storing training data:', trainingDataError);
+      return NextResponse.json(
+        { error: 'Failed to store training data' },
+        { status: 500 }
+      );
     }
     
-    // Clean up the temp file
-    fs.unlinkSync(filePath);
-    
+    // Instead of using local files, we need to handle the case differently in Edge Runtime
     return NextResponse.json({
       success: true,
-      job_id: fineTuningJob.id,
-      status: fineTuningJob.status,
       training_examples: trainingExamples.length,
-      message: "Fine-tuning job created successfully. It may take several hours to complete."
+      message: "Training data prepared and stored. Due to Edge Runtime constraints, the actual model creation needs to be done via a separate backend service or scheduled job.",
+      next_steps: "The training data has been stored in the 'training_data_storage' table. Use a separate Node.js service or scheduled job to create the OpenAI fine-tuning job using this data."
     });
     
   } catch (error) {
-    console.error('Error creating fine-tuning job:', error);
+    console.error('Error preparing training data:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error creating fine-tuning job' },
+      { error: error instanceof Error ? error.message : 'Unknown error preparing training data' },
       { status: 500 }
     );
   }
@@ -260,45 +218,11 @@ export async function GET() {
       );
     }
     
-    // For each job that's not completed, check its status
-    const updatedJobs = [];
-    
-    for (const job of jobs || []) {
-      if (job.status !== 'succeeded' && job.status !== 'failed') {
-        try {
-          const updatedJob = await openai.fineTuning.jobs.retrieve(job.job_id);
-          
-          // Update the job in our database
-          const { error: updateError } = await supabase
-            .from('ai_model_training_jobs')
-            .update({
-              status: updatedJob.status,
-              model_name: updatedJob.fine_tuned_model || job.model_name,
-              updated_at: new Date().toISOString()
-            })
-            .eq('job_id', job.job_id);
-            
-          if (updateError) {
-            console.error(`Error updating job ${job.job_id}:`, updateError);
-          }
-          
-          updatedJobs.push({
-            ...job,
-            status: updatedJob.status,
-            model_name: updatedJob.fine_tuned_model || job.model_name
-          });
-        } catch (error) {
-          console.error(`Error checking job ${job.job_id}:`, error);
-          updatedJobs.push(job);
-        }
-      } else {
-        updatedJobs.push(job);
-      }
-    }
-    
+    // In Edge Runtime, we can check the status of jobs but can't perform file operations
     return NextResponse.json({
       success: true,
-      jobs: updatedJobs
+      jobs: jobs || [],
+      message: "In Edge Runtime, detailed job status updates need to be performed by a separate service."
     });
     
   } catch (error) {
