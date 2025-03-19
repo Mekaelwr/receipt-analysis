@@ -36,7 +36,7 @@ export default function PriceComparisonPage() {
   const [allItems, setAllItems] = useState<AllItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [debugInfo, setDebugInfo] = useState<any>(null);
+  const [debugInfo, setDebugInfo] = useState<Record<string, unknown> | null>(null);
   const [activeTab, setActiveTab] = useState('all');
   const [categories, setCategories] = useState<string[]>([]);
   const [showAllItems, setShowAllItems] = useState(false);

@@ -6,8 +6,8 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// Define types
-interface ReceiptItem {
+// Exported interfaces for use in other files
+export interface ReceiptItem {
   standardized_item_name: string;
   final_price: number;
   quantity: number;
@@ -17,13 +17,13 @@ interface ReceiptItem {
   };
 }
 
-interface PriceComparison {
+export interface PriceComparison {
   standardized_item_name: string;
   store_name: string;
   min_price: number;
 }
 
-interface ProcessedItem {
+export interface ProcessedItem {
   item_name: string;
   your_store: string;
   your_price: number;
@@ -39,7 +39,7 @@ export async function GET() {
     console.log("Price comparison API called");
     
     // Check if the database function exists
-    let functionExists = false;
+    const functionExists = false;
     let functionCheckError = null;
     
     try {
@@ -145,7 +145,7 @@ export async function GET() {
           if (Array.isArray(item.receipts) && item.receipts.length > 0) {
             storeName = item.receipts[0].store_name;
           } else if (typeof item.receipts === 'object' && item.receipts !== null) {
-            storeName = (item.receipts as any).store_name;
+            storeName = (item.receipts as { store_name: string }).store_name;
           }
         }
         
@@ -195,19 +195,20 @@ export async function GET() {
     }
     
     return NextResponse.json(data);
-  } catch (error: any) {
+  } catch (error: Error | unknown) {
     console.error('Error in price comparison API:', error);
     
     // Provide detailed error information
+    const err = error as { message?: string; code?: string; hint?: string; details?: string; stack?: string };
     return NextResponse.json(
       { 
         error: 'Failed to retrieve price comparison data',
-        message: error.message || 'Unknown error',
+        message: err.message || 'Unknown error',
         details: {
-          code: error.code,
-          hint: error.hint,
-          details: error.details,
-          stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+          code: err.code,
+          hint: err.hint,
+          details: err.details,
+          stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
         }
       },
       { status: 500 }

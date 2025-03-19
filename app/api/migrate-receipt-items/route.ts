@@ -6,6 +6,22 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+interface Receipt {
+  id: string;
+  raw_receipt_json: {
+    items?: ReceiptItem[];
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+interface ReceiptItem {
+  name?: string;
+  price?: number;
+  quantity?: number;
+  [key: string]: unknown;
+}
+
 // Helper function to standardize item names
 function standardizeItemName(itemName: string): string {
   // Convert to lowercase
@@ -21,7 +37,7 @@ function standardizeItemName(itemName: string): string {
 }
 
 // Process a single receipt
-async function processReceipt(receipt: any) {
+async function processReceipt(receipt: Receipt) {
   try {
     const receipt_id = receipt.id;
     
@@ -52,7 +68,7 @@ async function processReceipt(receipt: any) {
     console.log(`Processing ${rawReceiptData.items.length} receipt items for insertion for receipt ${receipt_id}`);
     
     // Prepare the items for insertion
-    const receiptItems = rawReceiptData.items.map((item: any) => {
+    const receiptItems = rawReceiptData.items.map((item: ReceiptItem) => {
       // Create a standardized name for each item
       const standardizedName = standardizeItemName(item.name || '');
       

@@ -17,6 +17,13 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
+interface ReceiptItem {
+  name?: string;
+  price?: number;
+  quantity?: number;
+  [key: string]: unknown;
+}
+
 // Main API handler
 export async function POST(request: Request) {
   try {
@@ -24,7 +31,7 @@ export async function POST(request: Request) {
     
     const formData = await request.formData();
     const imageFile = formData.get('image') as File;
-    let receiptData = formData.get('receiptData') as string;
+    const receiptData = formData.get('receiptData') as string;
     
     if (!imageFile) {
       console.error('No image file provided');
@@ -297,7 +304,7 @@ export async function POST(request: Request) {
 }
 
 // Function to find cheaper alternatives for items
-async function findCheaperAlternatives(items: any[], storeName: string) {
+async function findCheaperAlternatives(items: ReceiptItem[], storeName: string) {
   const itemsWithAlternatives = [];
   
   for (const item of items) {
@@ -353,7 +360,7 @@ async function findCheaperAlternatives(items: any[], storeName: string) {
 }
 
 // Function to standardize items using two-stage AI process
-async function standardizeItems(items: any[]) {
+async function standardizeItems(items: ReceiptItem[]) {
   if (!items || items.length === 0) return [];
   
   try {

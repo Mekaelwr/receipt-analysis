@@ -12,6 +12,18 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
+interface ReceiptItem {
+  name: string;
+  [key: string]: unknown;
+}
+
+interface DetailedItem {
+  originalName: string;
+  detailedName: string;
+  category: string;
+  [key: string]: unknown;
+}
+
 export async function POST(request: Request) {
   try {
     const { receipt_id, itemNames } = await request.json();
@@ -33,7 +45,7 @@ export async function POST(request: Request) {
         );
       }
       
-      items = receipt.raw_receipt_json.items.map((item: any) => item.name);
+      items = receipt.raw_receipt_json.items.map((item: ReceiptItem) => item.name);
     } 
     // Otherwise use provided item names
     else if (itemNames && Array.isArray(itemNames)) {
@@ -229,7 +241,7 @@ async function generateDetailedItemNames(items: string[]) {
 /**
  * Second stage: Generate generic standardized item names for price comparison
  */
-async function generateGenericItemNames(detailedItems: any[]) {
+async function generateGenericItemNames(detailedItems: DetailedItem[]) {
   try {
     // System prompt for generic standardization
     const systemPrompt = `

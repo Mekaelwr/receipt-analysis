@@ -1,5 +1,12 @@
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
 // Create receipt_items table
-const createReceiptItemsTable = async () => {
+export const createReceiptItemsTable = async () => {
   await supabase.rpc('exec', {
     query: `
       CREATE TABLE IF NOT EXISTS receipt_items (

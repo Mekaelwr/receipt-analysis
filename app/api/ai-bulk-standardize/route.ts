@@ -19,6 +19,11 @@ interface ItemFrequency {
   stores: string[];
 }
 
+interface ReceiptItem {
+  name: string;
+  [key: string]: unknown;
+}
+
 export async function GET() {
   try {
     // Step 1: Extract all unique item names from receipts
@@ -45,7 +50,7 @@ export async function GET() {
       const storeName = receipt.store_name;
       const items = receipt.raw_receipt_json.items || [];
       
-      items.forEach((item: any) => {
+      items.forEach((item: ReceiptItem) => {
         const itemName = item.name;
         if (!itemName) return;
         

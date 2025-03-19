@@ -12,6 +12,11 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
+interface ReceiptItem {
+  name: string;
+  [key: string]: unknown;
+}
+
 export async function POST(request: Request) {
   try {
     const { receipt_id, item_name } = await request.json();
@@ -42,7 +47,7 @@ export async function POST(request: Request) {
       }
       
       itemNames = receipt.raw_receipt_json.items
-        .map((item: any) => item.name)
+        .map((item: ReceiptItem) => item.name)
         .filter(Boolean);
         
       if (itemNames.length === 0) {

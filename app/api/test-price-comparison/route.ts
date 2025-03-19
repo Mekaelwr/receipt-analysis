@@ -6,6 +6,20 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+interface ReceiptItem {
+  name?: string;
+  price?: number;
+  quantity?: number;
+  [key: string]: unknown;
+}
+
+interface DebugInfo {
+  item_name: string;
+  status: string;
+  reason: string;
+  [key: string]: unknown;
+}
+
 // Function to standardize item names
 function standardizeItemName(itemName: string): string {
   // Convert to lowercase
@@ -21,9 +35,9 @@ function standardizeItemName(itemName: string): string {
 }
 
 // Function to find cheaper alternatives for items
-async function findCheaperAlternatives(items: any[], storeName: string) {
+async function findCheaperAlternatives(items: ReceiptItem[], storeName: string) {
   const itemsWithAlternatives = [];
-  const debugInfo: any[] = [];
+  const debugInfo: DebugInfo[] = [];
   
   for (const item of items) {
     // Skip items without a name or price

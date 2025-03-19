@@ -81,19 +81,20 @@ export async function GET() {
     });
     
     return NextResponse.json(processedItems);
-  } catch (error: any) {
+  } catch (error: Error | unknown) {
     console.error('Error in all-items API:', error);
     
     // Provide detailed error information
+    const err = error as { message?: string; code?: string; hint?: string; details?: string };
     return NextResponse.json(
       { 
         error: 'Failed to retrieve items data',
-        message: error.message || 'Unknown error',
+        message: err.message || 'Unknown error',
         details: {
-          code: error.code,
-          hint: error.hint,
-          details: error.details,
-          stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+          code: err.code,
+          hint: err.hint,
+          details: err.details,
+          stack: process.env.NODE_ENV === 'development' && err instanceof Error ? err.stack : undefined
         }
       },
       { status: 500 }
