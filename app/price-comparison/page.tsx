@@ -10,6 +10,8 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
+import StorePriceComparison from '../components/StorePriceComparison';
+import TemporalPriceComparison from '../components/TemporalPriceComparison';
 
 // Define types
 interface PriceComparison {
@@ -39,7 +41,7 @@ export default function PriceComparisonPage() {
   const [debugInfo, setDebugInfo] = useState<Record<string, unknown> | null>(null);
   const [activeTab, setActiveTab] = useState('all');
   const [categories, setCategories] = useState<string[]>([]);
-  const [showAllItems, setShowAllItems] = useState(false);
+  const [analysisType, setAnalysisType] = useState<'alternatives' | 'stores' | 'time' | 'all'>('alternatives');
 
   useEffect(() => {
     async function fetchData() {
@@ -148,6 +150,23 @@ export default function PriceComparisonPage() {
     <div className="container mx-auto py-8">
       <h1 className="text-3xl font-bold mb-6">Price Comparison: Find Better Deals</h1>
       
+      {/* Analysis Type Selector */}
+      <div className="flex items-center justify-center mb-6">
+        <Tabs 
+          defaultValue="alternatives" 
+          value={analysisType} 
+          onValueChange={(value) => setAnalysisType(value as any)} 
+          className="w-full max-w-2xl"
+        >
+          <TabsList className="grid grid-cols-4 mb-6">
+            <TabsTrigger value="alternatives">Cheaper Alternatives</TabsTrigger>
+            <TabsTrigger value="stores">Store Differences</TabsTrigger>
+            <TabsTrigger value="time">Price Changes</TabsTrigger>
+            <TabsTrigger value="all">All Items</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+      
       {/* Debug Information */}
       {hasNoData && (
         <Alert variant="destructive" className="mb-6">
@@ -172,18 +191,6 @@ export default function PriceComparisonPage() {
         </Alert>
       )}
       
-      {/* View Toggle */}
-      <div className="flex items-center space-x-2 mb-6">
-        <Switch 
-          id="view-toggle" 
-          checked={showAllItems} 
-          onCheckedChange={setShowAllItems} 
-        />
-        <Label htmlFor="view-toggle">
-          {showAllItems ? "Showing all uploaded items" : "Showing items with cheaper alternatives"}
-        </Label>
-      </div>
-      
       {/* Error Display */}
       {error && (
         <Alert variant="destructive" className="mb-6">
@@ -201,8 +208,8 @@ export default function PriceComparisonPage() {
         </Alert>
       )}
       
-      {/* Summary Cards */}
-      {!showAllItems && (
+      {/* Summary Cards for Alternatives */}
+      {analysisType === 'alternatives' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <Card>
             <CardHeader className="pb-2">
@@ -250,7 +257,7 @@ export default function PriceComparisonPage() {
       )}
       
       {/* All Items Summary */}
-      {showAllItems && (
+      {analysisType === 'all' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <Card>
             <CardHeader className="pb-2">
@@ -309,17 +316,17 @@ export default function PriceComparisonPage() {
         </TabsList>
         
         <TabsContent value={activeTab}>
-          {loading ? (
+          {loading && analysisType !== 'stores' && analysisType !== 'time' ? (
             <div className="space-y-4">
               {[...Array(5)].map((_, i) => (
                 <Skeleton key={i} className="h-16 w-full" />
               ))}
             </div>
-          ) : error ? (
+          ) : error && analysisType !== 'stores' && analysisType !== 'time' ? (
             <div className="bg-red-50 p-4 rounded-md text-red-800">
               {error}
             </div>
-          ) : showAllItems ? (
+          ) : analysisType === 'all' ? (
             // All Items Table
             <Card>
               <CardContent className="p-0">
@@ -358,7 +365,7 @@ export default function PriceComparisonPage() {
                 )}
               </CardContent>
             </Card>
-          ) : (
+          ) : analysisType === 'alternatives' ? (
             // Cheaper Alternatives Table
             <Card>
               <CardContent className="p-0">
@@ -411,6 +418,12 @@ export default function PriceComparisonPage() {
                 )}
               </CardContent>
             </Card>
+          ) : analysisType === 'stores' ? (
+            // Store Price Comparison Component
+            <StorePriceComparison activeCategory={activeTab} />
+          ) : (
+            // Temporal Price Comparison Component
+            <TemporalPriceComparison activeCategory={activeTab} />
           )}
         </TabsContent>
       </Tabs>
