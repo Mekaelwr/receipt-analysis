@@ -10,6 +10,7 @@ interface PricePoint {
   price: number;
   date: string;
   detailed_name: string;
+  receipt_id: string;
 }
 
 interface TemporalComparison {

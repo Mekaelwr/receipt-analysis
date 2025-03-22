@@ -15,6 +15,7 @@ export interface TemporalComparison {
     price: number;
     date: string;
     detailed_name: string;
+    receipt_id: string;
   }[];
   max_price: number;
   min_price: number;
@@ -31,6 +32,8 @@ export async function GET() {
     const { data, error } = await supabase
       .from('receipt_items')
       .select(`
+        id,
+        receipt_id,
         standardized_item_name,
         item_price,
         detailed_name,
@@ -56,6 +59,7 @@ export async function GET() {
     for (const item of data as any[]) {
       let storeName = 'Unknown Store';
       let createdAt = new Date().toISOString();
+      let receiptId = item.receipt_id;
       
       if (item.receipts) {
         if (Array.isArray(item.receipts) && item.receipts.length > 0) {
@@ -86,7 +90,8 @@ export async function GET() {
       storeItemsMap.get(key).price_points.push({
         price: price,
         date: createdAt,
-        detailed_name: item.detailed_name || itemName
+        detailed_name: item.detailed_name || itemName,
+        receipt_id: receiptId
       });
     }
     
@@ -94,8 +99,25 @@ export async function GET() {
     const comparisons = [];
     
     for (const [_, itemData] of storeItemsMap.entries()) {
+      // Filter out duplicate items from the same receipt
+      // This creates a map of unique receipt IDs with their lowest price
+      const uniqueReceiptPrices = new Map();
+      
+      for (const point of itemData.price_points) {
+        if (!uniqueReceiptPrices.has(point.receipt_id) || 
+            uniqueReceiptPrices.get(point.receipt_id).price > point.price) {
+          uniqueReceiptPrices.set(point.receipt_id, point);
+        }
+      }
+      
+      // Convert back to array
+      const uniquePricePoints = Array.from(uniqueReceiptPrices.values());
+      
       // Only include items that appear in multiple receipts (have price changes)
-      if (itemData.price_points.length < 2) continue;
+      if (uniquePricePoints.length < 2) continue;
+      
+      // Replace the original price points with the deduplicated ones
+      itemData.price_points = uniquePricePoints;
       
       // Sort price points by date
       itemData.price_points.sort((a: { date: string }, b: { date: string }) => 
