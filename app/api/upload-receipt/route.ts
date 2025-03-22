@@ -30,6 +30,29 @@ interface ReceiptItem {
   [key: string]: unknown;
 }
 
+/**
+ * Helper function to safely handle errors and return them as JSON responses
+ */
+function handleApiError(error: unknown) {
+  console.error('API Error:', error);
+  
+  // Determine the error message
+  let errorMessage = 'An unknown error occurred';
+  if (error instanceof Error) {
+    errorMessage = error.message;
+  } else if (typeof error === 'string') {
+    errorMessage = error;
+  } else if (error && typeof error === 'object') {
+    errorMessage = JSON.stringify(error);
+  }
+  
+  // Return a properly formatted JSON response
+  return NextResponse.json(
+    { error: errorMessage },
+    { status: 500 }
+  );
+}
+
 // Main API handler
 export async function POST(request: Request) {
   try {
@@ -98,11 +121,7 @@ export async function POST(request: Request) {
         parsedReceiptData = JSON.parse(aiResponseText);
         console.log('Successfully extracted receipt data from image');
       } catch (parseError) {
-        console.error('Failed to parse AI response:', parseError);
-        return NextResponse.json(
-          { error: 'Failed to parse AI response' },
-          { status: 500 }
-        );
+        return handleApiError('Failed to parse AI response: ' + (parseError instanceof Error ? parseError.message : 'Unknown parsing error'));
       }
     } else {
       // Parse the provided receipt data
@@ -129,10 +148,7 @@ export async function POST(request: Request) {
     
     if (storageError) {
       console.error('Error uploading image to storage:', storageError);
-      return NextResponse.json(
-        { error: 'Failed to upload image' },
-        { status: 500 }
-      );
+      return handleApiError(`Failed to upload image: ${storageError.message || JSON.stringify(storageError)}`);
     }
     
     // Get the public URL for the uploaded image
@@ -190,10 +206,7 @@ export async function POST(request: Request) {
     
     if (dbError) {
       console.error('Error inserting receipt record:', dbError);
-      return NextResponse.json(
-        { error: 'Failed to save receipt data' },
-        { status: 500 }
-      );
+      return handleApiError(`Failed to save receipt data: ${dbError.message || JSON.stringify(dbError)}`);
     }
     
     // Insert receipt items
@@ -301,11 +314,7 @@ export async function POST(request: Request) {
     });
     
   } catch (error) {
-    console.error('Error processing receipt upload:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to process receipt' },
-      { status: 500 }
-    );
+    return handleApiError(error);
   }
 }
 

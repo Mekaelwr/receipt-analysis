@@ -291,8 +291,34 @@ export function ReceiptUploader() {
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Error saving receipt:", errorData);
+        let errorMessage = `HTTP error! Status: ${response.status}`;
+        
+        try {
+          // Try to parse error as JSON
+          const errorData = await response.json();
+          console.error("Error saving receipt:", errorData);
+          
+          // Add more specific error message if available
+          if (errorData && errorData.error) {
+            errorMessage += ` - ${errorData.error}`;
+          }
+        } catch (parseError) {
+          // Handle case where response isn't valid JSON
+          console.error("Error parsing response:", parseError);
+          
+          // Try to get error as text instead
+          try {
+            const errorText = await response.text();
+            if (errorText) {
+              errorMessage += ` - ${errorText}`;
+            }
+          } catch (textError) {
+            console.error("Could not read error response as text:", textError);
+          }
+        }
+        
+        console.error(errorMessage);
+        // You could also set an error state here to display to the user
         return;
       }
       
