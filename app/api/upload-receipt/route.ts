@@ -44,11 +44,11 @@ async function processReceiptImage(imageFile: File): Promise<string> {
   const receipt_id = uuidv4();
   const arrayBuffer = await imageFile.arrayBuffer();
   
-  // Store image in the default public bucket
+  // Store image in the receipts bucket
   const { data, error } = await supabase
     .storage
-    .from('public')  // Changed from 'receipt-images' to 'public'
-    .upload(`receipts/${receipt_id}.jpg`, arrayBuffer, {
+    .from('receipts')  // Changed from 'public' to 'receipts'
+    .upload(`${receipt_id}.jpg`, arrayBuffer, {
       contentType: 'image/jpeg',
       cacheControl: '3600',
       upsert: true  // Added upsert option
@@ -164,10 +164,10 @@ export async function POST(request: Request) {
     const arrayBuffer = await imageFile.arrayBuffer();
     const { data: storageData, error: storageError } = await supabase
       .storage
-      .from('public')  // Changed from 'receipts' to 'public'
+      .from('receipts')  // Changed from 'public' to 'receipts'
       .upload(`receipts/${fileName}`, arrayBuffer, {
         contentType: imageFile.type,
-        upsert: true  // Added upsert option
+        upsert: true
       });
     
     if (storageError) {
@@ -181,7 +181,7 @@ export async function POST(request: Request) {
     // Get the public URL for the uploaded image
     const { data: { publicUrl } } = supabase
       .storage
-      .from('public')  // Changed from 'receipts' to 'public'
+      .from('receipts')  // Changed from 'public' to 'receipts'
       .getPublicUrl(`receipts/${fileName}`);
     
     // Extract receipt information from the parsed data
