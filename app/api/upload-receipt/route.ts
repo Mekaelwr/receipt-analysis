@@ -3,15 +3,8 @@ import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import OpenAI from 'openai';
 
-// Configure runtime to use Node.js instead of edge
-export const config = {
-  runtime: 'nodejs',
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
-  },
-};
+// Configure for edge runtime
+export const runtime = 'edge';
 
 // Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -46,15 +39,16 @@ interface ReceiptAlternative {
   };
 }
 
-// Modify file handling to use ArrayBuffer instead of fs
-async function processReceiptImage(imageData: ArrayBuffer): Promise<string> {
+// Modify file handling to use ArrayBuffer
+async function processReceiptImage(imageFile: File): Promise<string> {
   const receipt_id = uuidv4();
+  const arrayBuffer = await imageFile.arrayBuffer();
   
   // Store image directly in Supabase storage
   const { data, error } = await supabase
     .storage
     .from('receipt-images')
-    .upload(`${receipt_id}.jpg`, imageData, {
+    .upload(`${receipt_id}.jpg`, arrayBuffer, {
       contentType: 'image/jpeg',
       cacheControl: '3600'
     });
@@ -70,20 +64,7 @@ async function processReceiptImage(imageData: ArrayBuffer): Promise<string> {
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
-    const file = formData.get('file') as File;
-    
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
-    }
-
-    const buffer = await file.arrayBuffer();
-    const receipt_id = await processReceiptImage(buffer);
-
-    console.log('Received request to upload receipt');
-    
     const imageFile = formData.get('image') as File;
-    const bytes = await imageFile.arrayBuffer();
-    const uploadBuffer = Buffer.from(bytes);
     const receiptData = formData.get('receiptData') as string;
     
     if (!imageFile) {
@@ -93,6 +74,9 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const receipt_id = await processReceiptImage(imageFile);
+    console.log('Received request to upload receipt');
     
     // If receiptData is not provided, we'll analyze the image with OpenAI
     let parsedReceiptData;
@@ -100,14 +84,16 @@ export async function POST(request: Request) {
       console.log('No receipt data provided, analyzing image with AI...');
       
       // Convert image to base64 for OpenAI
-      const imageBytes = await imageFile.arrayBuffer();
-      const imageBuffer = Buffer.from(imageBytes);
-      const base64Image = imageBuffer.toString('base64');
+      const arrayBuffer = await imageFile.arrayBuffer();
+      const base64Image = btoa(
+        new Uint8Array(arrayBuffer)
+          .reduce((data, byte) => data + String.fromCharCode(byte), '')
+      );
       const mimeType = imageFile.type;
       
       // Simple initial prompt to extract basic receipt information
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4-vision-preview",
         messages: [
           { 
             role: "system", 
@@ -163,12 +149,11 @@ export async function POST(request: Request) {
     const fileName = `${timestamp}.${fileExtension}`;
     
     // Upload the image to Supabase Storage
-    const storageBytes = await imageFile.arrayBuffer();
-    const storageBuffer = Buffer.from(storageBytes);
+    const arrayBuffer = await imageFile.arrayBuffer();
     const { data: storageData, error: storageError } = await supabase
       .storage
       .from('receipts')
-      .upload(`receipts/${fileName}`, storageBuffer, {
+      .upload(`receipts/${fileName}`, arrayBuffer, {
         contentType: imageFile.type,
         upsert: false
       });
