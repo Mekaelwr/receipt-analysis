@@ -6,9 +6,12 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import TopBar from '../components/TopBar';
 import ProtectedRoute from '@/contexts/ProtectedRoute';
 import { Analytics } from "@vercel/analytics/react"
-// import { PostHogProvider } from '@/contexts/PostHogContext';
-// import { PostHogErrorBoundary } from '@/components/PostHogErrorBoundary';
+import { config } from '@fortawesome/fontawesome-svg-core';
+import '@fortawesome/fontawesome-svg-core/styles.css';
 import { Roboto_Mono } from "next/font/google";
+
+// Prevent Font Awesome from adding its CSS since we did it manually above
+config.autoAddCss = false;
 
 const inter = Inter({
   subsets: ['latin'],
@@ -32,24 +35,19 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${robotoMono.variable}`}>
       <head>
-        <script 
-          src="https://kit.fontawesome.com/e721f89c97.js" 
-          crossOrigin="anonymous" 
-          async
+        <link 
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;700&display=swap" 
+          rel="stylesheet"
         />
       </head>
       <body>
         <Analytics mode="auto" />
-        {/* <PostHogErrorBoundary>
-          <PostHogProvider> */}
-            <AuthProvider>   
-                <ProtectedRoute>
-                  <TopBar />    
-                  <main>{children}</main>
-                </ProtectedRoute>
-            </AuthProvider>
-          {/* </PostHogProvider>
-        </PostHogErrorBoundary> */}
+        <AuthProvider>   
+          <ProtectedRoute>
+            <TopBar />    
+            <main>{children}</main>
+          </ProtectedRoute>
+        </AuthProvider>
       </body>
     </html>
   );

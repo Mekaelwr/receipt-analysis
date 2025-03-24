@@ -1,12 +1,3 @@
-/* || GENERAL STYLES */
-.body {
-  margin: 0;
-  background: linear-gradient(180deg, var(--color-bg-start) 0%, var(--color-bg-end) 100%);
-  font-family: var(--font-primary);
-  color: var(--color-primary);
-  min-height: 100vh;
-}
-
 /* || LAYOUT */
 .container {
   max-width: 400px;
@@ -72,6 +63,58 @@
 .statsIcon {
   color: var(--color-accent);
   padding-right: 4px;
+}
+
+/* || UPLOAD SECTION */
+.uploadSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.uploadButton {
+  color: white;
+  padding: 12px 24px;
+  border-radius: 100px;
+  background: linear-gradient(180deg, #FFB60E 0%, #7D5700 100%);
+  box-shadow: 0 0 0 1px #402D00;
+  border: none;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+  letter-spacing: -0.5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: transform 0.2s ease;
+}
+
+.uploadButton:hover {
+  transform: scale(1.02);
+}
+
+.uploadButton:active {
+  transform: scale(0.98);
+}
+
+.previewContainer {
+  width: 100%;
+  max-width: 300px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.error {
+  color: #dc2626;
+  background: #fee2e2;
+  padding: 12px;
+  border-radius: 8px;
+  text-align: center;
+  width: 100%;
 }
 
 /* || RECEIPT STYLES */
@@ -199,25 +242,4 @@
 
 .receiptSavingsPrice {
   color: var(--color-primary);
-}
-
-/* || FOOTER */
-.footer {
-  margin-top: 30px;
-  text-align: center;
-}
-
-.footerText {
-  color: var(--color-accent);
-  font-size: 12px;
-  font-weight: 500;
-  margin: 0;
-}
-
-.footerLink {
-  color: var(--color-accent);
-}
-
-.footerLink:hover {
-  text-decoration: none;
 } 

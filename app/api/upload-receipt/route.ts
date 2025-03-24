@@ -1,12 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-import { writeFile } from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
-import * as formidable from 'formidable';
-import path from 'path';
 import OpenAI from 'openai';
 
-export const runtime = 'edge';
+// Configure runtime to use Node.js instead of edge
+export const config = {
+  runtime: 'nodejs',
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+};
 
 // Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -30,12 +35,52 @@ interface ReceiptItem {
   [key: string]: unknown;
 }
 
-// Main API handler
+interface ReceiptAlternative {
+  id: string;
+  standardized_item_name: string;
+  detailed_name: string;
+  item_price: number;
+  receipts: {
+    id: string;
+    store_name: string;
+  };
+}
+
+// Modify file handling to use ArrayBuffer instead of fs
+async function processReceiptImage(imageData: ArrayBuffer): Promise<string> {
+  const receipt_id = uuidv4();
+  
+  // Store image directly in Supabase storage
+  const { data, error } = await supabase
+    .storage
+    .from('receipt-images')
+    .upload(`${receipt_id}.jpg`, imageData, {
+      contentType: 'image/jpeg',
+      cacheControl: '3600'
+    });
+
+  if (error) {
+    throw new Error(`Failed to upload image: ${error.message}`);
+  }
+
+  return receipt_id;
+}
+
+// Modify the POST handler to handle FormData directly
 export async function POST(request: Request) {
   try {
+    const formData = await request.formData();
+    const file = formData.get('file') as File;
+    
+    if (!file) {
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    }
+
+    const buffer = await file.arrayBuffer();
+    const receipt_id = await processReceiptImage(buffer);
+
     console.log('Received request to upload receipt');
     
-    const formData = await request.formData();
     const imageFile = formData.get('image') as File;
     const receiptData = formData.get('receiptData') as string;
     
@@ -391,6 +436,19 @@ export async function POST(request: Request) {
   }
 }
 
+// Helper function to create partial match conditions for PostgREST
+function createPartialMatchQuery(standardizedName: string): string {
+  const words = standardizedName.split(' ').filter(word => word.length > 2);  // ignore small words
+  if (words.length <= 1) {
+    return `standardized_item_name.eq.${standardizedName}`;  // exact match for single words
+  }
+  
+  // Create conditions that require matching at least 2 words
+  return words.map(word => 
+    `standardized_item_name.ilike.*${word}*`
+  ).join(',');
+}
+
 // Function to find cheaper alternatives for items
 async function findCheaperAlternatives(items: ReceiptItem[], storeName: string) {
   const itemsWithAlternatives = [];
@@ -417,7 +475,8 @@ async function findCheaperAlternatives(items: ReceiptItem[], storeName: string) 
     console.log(`Processing item: ${item.name} (${standardizedName}) - price: ${item.price}`);
     
     try {
-      // First approach: Use receipt_items table with more flexible matching
+      // First approach: Use receipt_items table with partial matching
+      const partialMatchQuery = createPartialMatchQuery(standardizedName);
       const { data: alternativesFromReceipts, error: receiptsError } = await supabase
         .from('receipt_items')
         .select(`
@@ -425,14 +484,17 @@ async function findCheaperAlternatives(items: ReceiptItem[], storeName: string) 
           standardized_item_name,
           detailed_name,
           item_price,
-          receipts:receipts(id, store_name)
+          receipts!inner(
+            id,
+            store_name
+          )
         `)
-        .or(`standardized_item_name.ilike.%${standardizedName}%,standardized_item_name.eq.${standardizedName}`)
+        .or(partialMatchQuery)
         .lt('item_price', item.price ? parseFloat(item.price.toString()) : 0);
-      
+
       // Filter out items from the wrong store and sort by price
-      const filteredAlternativesFromReceipts = alternativesFromReceipts
-        ?.filter(alt => alt.receipts && alt.receipts[0]?.store_name !== storeName)
+      const filteredAlternativesFromReceipts = (alternativesFromReceipts as ReceiptAlternative[] | null)
+        ?.filter(alt => alt.receipts && alt.receipts.store_name !== storeName)
         .sort((a, b) => parseFloat(a.item_price.toString()) - parseFloat(b.item_price.toString()))
         .slice(0, 5) || [];
       
@@ -442,38 +504,28 @@ async function findCheaperAlternatives(items: ReceiptItem[], storeName: string) 
       
       console.log(`Found ${filteredAlternativesFromReceipts.length} alternatives from receipts for ${item.name}`);
       
-      // Second approach: Try the product_prices table as a fallback with more flexible matching
+      // Second approach: Try the product_prices table as a fallback with exact matching
       const { data: alternativesFromPrices, error: pricesError } = await supabase
         .from('product_prices')
         .select('store_name, price, standardized_item_name')
-        .or(`standardized_item_name.ilike.%${standardizedName}%,standardized_item_name.eq.${standardizedName}`)
+        .eq('standardized_item_name', standardizedName)
         .neq('store_name', storeName)
         .lt('price', item.price ? parseFloat(item.price.toString()) : 0)
         .order('price', { ascending: true })
         .limit(5);
-        
-      // Try a third approach: Keyword matching for broader results
-      const keywords = (standardizedName || '').split(' ');
-      const mainKeyword = keywords.length > 1 ? keywords[keywords.length - 1] : standardizedName;
       
-      const { data: keywordAlternativesFromPrices, error: keywordPricesError } = await supabase
-        .from('product_prices')
-        .select('store_name, price, standardized_item_name')
-        .ilike('standardized_item_name', `%${mainKeyword}%`)
-        .neq('store_name', storeName)
-        .lt('price', item.price ? parseFloat(item.price.toString()) : 0)
-        .order('price', { ascending: true })
-        .limit(5);
+      // Remove the keyword matching approach since we want exact matches only
+      const keywordAlternativesFromPrices: Array<{
+        store_name: string;
+        price: number;
+        standardized_item_name: string;
+      }> = [];
       
       if (pricesError) {
         console.error('Error finding alternatives from product_prices:', pricesError);
       }
       
-      if (keywordPricesError) {
-        console.error('Error finding keyword alternatives from product_prices:', keywordPricesError);
-      }
-      
-      console.log(`Found ${alternativesFromPrices?.length || 0} direct alternatives and ${keywordAlternativesFromPrices?.length || 0} keyword alternatives from prices for ${item.name}`);
+      console.log(`Found ${alternativesFromPrices?.length || 0} direct alternatives from prices for ${item.name}`);
       
       // Prioritize alternatives from receipts, then fall back to product_prices
       const cheaperAlternatives = [];
@@ -481,21 +533,21 @@ async function findCheaperAlternatives(items: ReceiptItem[], storeName: string) 
       if (filteredAlternativesFromReceipts.length > 0) {
         // Format alternatives from receipts to match our expected structure
         cheaperAlternatives.push(...filteredAlternativesFromReceipts.map(alt => ({
-          store_name: alt.receipts[0]?.store_name || 'Unknown',
+          store_name: alt.receipts.store_name || 'Unknown',
           price: alt.item_price,
           item_name: alt.detailed_name || alt.standardized_item_name
         })));
       } else if (alternativesFromPrices && alternativesFromPrices.length > 0) {
         // Format alternatives from product_prices
         cheaperAlternatives.push(...alternativesFromPrices.map(alt => ({
-          store_name: alt.store_name,
+          store_name: extractStoreName(alt.store_name),
           price: alt.price,
           item_name: alt.standardized_item_name
         })));
       } else if (keywordAlternativesFromPrices && keywordAlternativesFromPrices.length > 0) {
         // Format keyword-based alternatives
         cheaperAlternatives.push(...keywordAlternativesFromPrices.map(alt => ({
-          store_name: alt.store_name,
+          store_name: extractStoreName(alt.store_name),
           price: alt.price,
           item_name: alt.standardized_item_name
         })));
@@ -788,4 +840,12 @@ async function generateGenericItemNames(detailedItems: DetailedItem[]): Promise<
     console.error('Error generating generic item names:', error);
     return null;
   }
+}
+
+// Helper function to extract store name
+function extractStoreName(name: string): string {
+  if (name.includes('365 by Whole Foods')) {
+    return 'Whole Foods';
+  }
+  return name;
 } 

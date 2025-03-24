@@ -2,8 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
-import styles from './receipt.module.css';
-import { ReceiptAnalysis } from './ReceiptAnalysis';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPiggyBank, faReceipt } from '@fortawesome/free-solid-svg-icons';
+import styles from './receipt-shared.module.css';
+import { ReceiptDisplay } from './ReceiptDisplay';
 
 // Define the receipt JSON structure
 interface ReceiptJSON {
@@ -67,6 +69,27 @@ interface ReceiptJSON {
   return_policy: {
     return_window_days: number;
     proof_of_purchase_required: boolean;
+  };
+}
+
+// Helper function to format receipt data
+function formatReceiptData(json: ReceiptJSON) {
+  return {
+    store: json.store_information.name,
+    address: json.store_information.address,
+    date: `${json.purchase_details.date} at ${json.purchase_details.time}`,
+    items: json.items.map((item, index) => ({
+      id: index.toString(),
+      name: item.name,
+      price: `$${item.final_price.toFixed(2)}`,
+      cheaper_alternative: item.cheaper_alternative
+    })),
+    totals: {
+      subtotal: `$${json.financial_summary.subtotal.toFixed(2)}`,
+      tax: `$${json.financial_summary.total_taxes.toFixed(2)}`,
+      total: `$${json.financial_summary.total_amount.toFixed(2)}`
+    },
+    totalSavings: `$${json.savings_summary.total_savings.toFixed(2)}`
   };
 }
 
@@ -413,237 +436,65 @@ export function ReceiptUploader() {
   };
 
   return (
-    <div className={styles.receiptUploaderContainer}>
-      {/* Test button for development */}
-      <div className={styles.testButtonContainer}>
-        <button 
-          className={styles.testButton}
-          onClick={async () => {
-            setIsAnalyzing(true);
-            try {
-              const response = await fetch('/api/test-take-photo');
-              if (!response.ok) {
-                throw new Error('Test endpoint failed');
-              }
-              const data = await response.json();
-              
-              // Process the response to include alternatives in the receipt JSON
-              const receiptWithAlternatives = data.receipt_json;
-              
-              // FORCE TEST ALTERNATIVES - This guarantees we can see if the UI properly displays them
-              // Create sample alternatives for 3 different items
-              const forceAlternatives = [
-                { 
-                  name: "SIG HONEY MUSTARD", 
-                  alternative: {
-                    store_name: "Whole Foods",
-                    price: 2.49,
-                    item_name: "365 Organic Honey Mustard",
-                    savings: 0.80,
-                    percentage_savings: 24.32
-                  }
-                },
-                {
-                  name: "SIMPLY 2 PF 52Z",
-                  alternative: {
-                    store_name: "Target",
-                    price: 3.69,
-                    item_name: "Not From Concentrate OJ No Pulp",
-                    savings: 1.30,
-                    percentage_savings: 26.05
-                  }
-                },
-                {
-                  name: "RANA TAKE HOME",
-                  alternative: {
-                    store_name: "Trader Joe's",
-                    price: 3.79,
-                    item_name: "De Cecco Pasta 16 oz",
-                    savings: 9.20,
-                    percentage_savings: 70.82
-                  }
-                }
-              ];
-              
-              // Only use if we don't already have alternatives
-              if (!receiptWithAlternatives.items.some((item: any) => item.cheaper_alternative)) {
-                console.log("✅ FORCING TEST ALTERNATIVES FOR DISPLAY TESTING");
-                // Apply forced alternatives to receipt items
-                receiptWithAlternatives.items = receiptWithAlternatives.items.map((item: any) => {
-                  const testAlt = forceAlternatives.find(a => item.name.includes(a.name));
-                  if (testAlt) {
-                    console.log(`✅ Adding test alternative to ${item.name}`);
-                    return { 
-                      ...item, 
-                      cheaper_alternative: testAlt.alternative 
-                    };
-                  }
-                  return item;
-                });
-              }
-              
-              // Log the processed receipt data
-              console.log("Test receipt with alternatives:", receiptWithAlternatives);
-              
-              // Count items with alternatives for verification
-              const altItemCount = receiptWithAlternatives.items.filter((item: any) => item.cheaper_alternative).length;
-              const totalSavings = receiptWithAlternatives.items.reduce((sum: number, item: any) => {
-                if (!item.cheaper_alternative) return sum;
-                return sum + (item.cheaper_alternative.savings || 0);
-              }, 0);
-              
-              console.log(`✅ Final check: Found ${altItemCount} items with alternatives, total savings: $${totalSavings.toFixed(2)}`);
-              
-              setAnalysisText(data.analysis);
-              setReceiptJSON(receiptWithAlternatives);
-              setShowPreview(false);
-            } catch (error) {
-              console.error('Error testing receipt:', error);
-              setAnalysisError(error instanceof Error ? error.message : 'Test failed');
-            } finally {
-              setIsAnalyzing(false);
-            }
-          }}
-        >
-          Load Test Receipt
-        </button>
+    <div className={styles.container}>
+      <div className={styles.logo}>
+        <FontAwesomeIcon icon={faPiggyBank} size="2x" className={styles.logoIcon} />
       </div>
       
-      <div className={styles.uploaderHero}>
-        {/* Hidden canvas for image processing */}
-        <canvas ref={canvasRef} style={{ display: 'none' }} />
-        
-        {!analysisText ? (
-          <div className={styles.receiptWrapper}>
-            <div className={styles.receiptHero}>
-              <h2 className={styles.receiptTitle}>
-                Ready to capture your<br />receipt and start<br />saving <span className={styles.receiptHighlight}>money?</span>
-              </h2>
-              
-              <div className={styles.preprocessingOption}>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={usePreprocessing}
-                    onChange={() => setUsePreprocessing(!usePreprocessing)}
-                  />
-                  <span>Enhance image for better text recognition</span>
-                </label>
-              </div>
-              
-              <label htmlFor="receipt-upload" className={styles.uploadButton}>
-                <i className="fa-solid fa-camera"></i>Take Photo
-              </label>
-              <input 
-                id="receipt-upload" 
-                type="file" 
-                accept="image/*"
-                capture
-                onChange={handleFileUpload} 
-                style={{ display: 'none' }} 
-              />
-              
-              {fileName && (
-                <div className={styles.fileInfo}>
-                  <p>Uploaded file: <strong>{fileName}</strong></p>
-                </div>
-              )}
-              
-              {isAnalyzing && (
-                <div className={styles.uploadingIndicator}>
-                  <i className="fa-solid fa-spinner fa-spin"></i>
-                  <p>Analyzing your receipt...</p>
-                </div>
-              )}
-              
-              {analysisError && (
-                <div className={styles.errorMessage}>
-                  <i className="fa-solid fa-exclamation-circle"></i>
-                  <p>{analysisError}</p>
-                </div>
-              )}
-              
-              {previewUrl && showPreview && !isAnalyzing && (
-                <div className={styles.imagePreview}>
-                  {previewUrl && (
-                    <Image 
-                      src={previewUrl} 
-                      alt="Receipt preview" 
-                      width={300}
-                      height={400}
-                      style={{ objectFit: 'contain', width: '100%', height: 'auto' }}
-                    />
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <>
-            {/* Use the ReceiptAnalysis component with the JSON data */}
-            <ReceiptAnalysis analysisText={analysisText} receiptJSON={receiptJSON || undefined} />
-            
-            <div className={styles.actionButtons}>
-              <button 
-                className={styles.resetButton}
-                onClick={() => {
-                  setFileName(null);
-                  setPreviewUrl(null);
-                  setAnalysisText(null);
-                  setReceiptJSON(null);
-                  setAnalysisError(null);
-                }}
-              >
-                <i className="fa-solid fa-arrow-left"></i> Scan another receipt
-              </button>
-              
-              <button 
-                className={styles.viewImageButton}
-                onClick={() => setShowPreview(!showPreview)}
-              >
-                <i className={`fa-solid ${showPreview ? 'fa-eye-slash' : 'fa-eye'}`}></i> 
-                {showPreview ? 'Hide' : 'View'} Receipt Image
-              </button>
-              
-              <button 
-                className={styles.debugButton}
-                onClick={() => setShowDebugInfo(!showDebugInfo)}
-              >
-                <i className={`fa-solid ${showDebugInfo ? 'fa-bug-slash' : 'fa-bug'}`}></i> 
-                {showDebugInfo ? 'Hide' : 'Show'} Raw Analysis
-              </button>
-            </div>
-            
-            {previewUrl && showPreview && (
-              <div className={styles.imagePreviewLarge}>
-                {previewUrl && (
-                  <Image 
-                    src={previewUrl} 
-                    alt="Receipt image" 
-                    width={600}
-                    height={800}
-                    style={{ objectFit: 'contain', width: '100%', height: 'auto' }}
-                  />
-                )}
-              </div>
-            )}
-            
-            {showDebugInfo && analysisText && (
-              <div className={styles.rawAnalysis}>
-                <h3>Raw GPT-4o-mini Analysis</h3>
-                <pre>{analysisText}</pre>
-                
-                {receiptJSON && (
-                  <>
-                    <h3>Parsed JSON</h3>
-                    <pre>{JSON.stringify(receiptJSON, null, 2)}</pre>
-                  </>
-                )}
-              </div>
-            )}
-          </>
-        )}
+      <header className={styles.header}>
+        <h6 className={styles.headerTitle}>Penny pincher</h6>
+        <h1 className={styles.headerSubtitle}>Upload receipts and find out if you got the best price!</h1>
+      </header>
+
+      <div className={styles.stats}>
+        <p className={styles.statsItem}>
+          <FontAwesomeIcon icon={faReceipt} className={styles.statsIcon} />
+          <strong>23,409</strong> receipts
+        </p>
+        <p className={styles.statsItem}>
+          <FontAwesomeIcon icon={faPiggyBank} className={styles.statsIcon} />
+          <strong>1,400,024</strong> savings
+        </p>
       </div>
+
+      {!receiptJSON && (
+        <div className={styles.uploadSection}>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleFileUpload}
+            style={{ display: 'none' }}
+            id="receipt-upload"
+          />
+          <label htmlFor="receipt-upload" className={styles.uploadButton}>
+            {isAnalyzing ? 'Analyzing...' : 'Upload Receipt'}
+          </label>
+          
+          {previewUrl && showPreview && (
+            <div className={styles.previewContainer}>
+              <Image
+                src={previewUrl}
+                alt="Receipt preview"
+                width={300}
+                height={400}
+                style={{ objectFit: 'contain' }}
+              />
+            </div>
+          )}
+          
+          {analysisError && (
+            <div className={styles.error}>
+              Error: {analysisError}
+            </div>
+          )}
+        </div>
+      )}
+
+      {receiptJSON && (
+        <ReceiptDisplay receipt={formatReceiptData(receiptJSON)} />
+      )}
+
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
     </div>
   );
 } 
