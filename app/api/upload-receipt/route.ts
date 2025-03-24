@@ -82,6 +82,8 @@ export async function POST(request: Request) {
     console.log('Received request to upload receipt');
     
     const imageFile = formData.get('image') as File;
+    const bytes = await imageFile.arrayBuffer();
+    const uploadBuffer = Buffer.from(bytes);
     const receiptData = formData.get('receiptData') as string;
     
     if (!imageFile) {
@@ -98,9 +100,9 @@ export async function POST(request: Request) {
       console.log('No receipt data provided, analyzing image with AI...');
       
       // Convert image to base64 for OpenAI
-      const bytes = await imageFile.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      const base64Image = buffer.toString('base64');
+      const imageBytes = await imageFile.arrayBuffer();
+      const imageBuffer = Buffer.from(imageBytes);
+      const base64Image = imageBuffer.toString('base64');
       const mimeType = imageFile.type;
       
       // Simple initial prompt to extract basic receipt information
@@ -161,13 +163,12 @@ export async function POST(request: Request) {
     const fileName = `${timestamp}.${fileExtension}`;
     
     // Upload the image to Supabase Storage
-    const bytes = await imageFile.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    
+    const storageBytes = await imageFile.arrayBuffer();
+    const storageBuffer = Buffer.from(storageBytes);
     const { data: storageData, error: storageError } = await supabase
       .storage
       .from('receipts')
-      .upload(`receipts/${fileName}`, buffer, {
+      .upload(`receipts/${fileName}`, storageBuffer, {
         contentType: imageFile.type,
         upsert: false
       });
