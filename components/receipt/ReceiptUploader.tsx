@@ -97,7 +97,8 @@ const formatReceiptData = (receipt: ReceiptJSON): ReceiptData => {
     items: receipt.items.map((item, index) => ({
       id: index.toString(),
       name: item.name,
-      price: `$${Number(item.final_price || 0).toFixed(2)}`,
+      original_price: `$${Number(item.price || 0).toFixed(2)}`,
+      final_price: `$${Number(item.final_price || 0).toFixed(2)}`,
       cheaper_alternative: item.cheaper_alternative ? {
         store_name: item.cheaper_alternative.store_name,
         price: `$${Number(item.cheaper_alternative.price || 0).toFixed(2)}`,

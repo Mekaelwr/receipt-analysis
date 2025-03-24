@@ -7,7 +7,8 @@ import styles from './receipt-shared.module.css';
 export interface ReceiptItem {
   id: string;
   name: string;
-  price: string;
+  original_price: string;
+  final_price: string;
   cheaper_alternative?: {
     store_name: string;
     price: string;
@@ -58,7 +59,7 @@ export function ReceiptDisplay({ receipt }: Props) {
                   <div className={styles.receiptMain}>
                     <div className={styles.receiptNumber}>{itemNumber}</div>
                     <div className={styles.receiptName}>{item.name}</div>
-                    <div className={`${styles.receiptPrice} ${styles.receiptPriceStrike}`}>{item.price}</div>
+                    <div className={`${styles.receiptPrice} ${styles.receiptPriceStrike}`}>{item.original_price}</div>
                   </div>
                   <div className={styles.receiptSavings}>
                     <div className={styles.receiptNumber}>
@@ -75,7 +76,7 @@ export function ReceiptDisplay({ receipt }: Props) {
               <div key={item.id} className={styles.receiptItem}>
                 <div className={styles.receiptNumber}>{itemNumber}</div>
                 <div className={styles.receiptName}>{item.name}</div>
-                <div className={styles.receiptPrice}>{item.price}</div>
+                <div className={styles.receiptPrice}>{item.original_price}</div>
               </div>
             );
           })}
