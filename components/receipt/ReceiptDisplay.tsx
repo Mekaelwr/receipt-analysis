@@ -10,10 +10,10 @@ export interface ReceiptItem {
   price: string;
   cheaper_alternative?: {
     store_name: string;
-    price: number;
+    price: string;
     item_name: string;
-    savings: number;
-    percentage_savings: number;
+    savings: string;
+    percentage_savings: string;
   };
 }
 
@@ -65,7 +65,7 @@ export function ReceiptDisplay({ receipt }: Props) {
                       <FontAwesomeIcon icon={faPiggyBank} className={styles.statsIcon} />
                     </div>
                     <span>Better price at {item.cheaper_alternative.store_name}</span>
-                    <span className={styles.receiptSavingsPrice}>${item.cheaper_alternative.price.toFixed(2)}</span>
+                    <span className={styles.receiptSavingsPrice}>{item.cheaper_alternative.price}</span>
                   </div>
                 </div>
               );

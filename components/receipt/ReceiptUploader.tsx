@@ -72,31 +72,6 @@ interface ReceiptJSON {
   };
 }
 
-// Define the ReceiptData type
-interface ReceiptData {
-  store: string;
-  address: string;
-  date: string;
-  items: Array<{
-    id: string;
-    name: string;
-    price: string;
-    cheaper_alternative?: {
-      store_name: string;
-      price: string;
-      item_name: string;
-      savings: string;
-      percentage_savings: string;
-    };
-  }>;
-  totals: {
-    subtotal: string;
-    tax: string;
-    total: string;
-  };
-  totalSavings: string;
-}
-
 // Format receipt data for display
 const formatReceiptData = (receipt: ReceiptJSON): ReceiptData => {
   if (!receipt) {
@@ -125,10 +100,10 @@ const formatReceiptData = (receipt: ReceiptJSON): ReceiptData => {
       price: `$${Number(item.final_price || 0).toFixed(2)}`,
       cheaper_alternative: item.cheaper_alternative ? {
         store_name: item.cheaper_alternative.store_name,
-        price: Number(item.cheaper_alternative.price || 0),
+        price: `$${Number(item.cheaper_alternative.price || 0).toFixed(2)}`,
         item_name: item.cheaper_alternative.item_name,
-        savings: Number(item.cheaper_alternative.savings || 0),
-        percentage_savings: Number(item.cheaper_alternative.percentage_savings || 0)
+        savings: `$${Number(item.cheaper_alternative.savings || 0).toFixed(2)}`,
+        percentage_savings: `${Number(item.cheaper_alternative.percentage_savings || 0).toFixed(1)}%`
       } : undefined
     })),
     totals: {
