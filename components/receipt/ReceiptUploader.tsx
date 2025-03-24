@@ -353,85 +353,31 @@ export function ReceiptUploader() {
       
       if (!response.ok) {
         const errorData = await response.json();
-        console.error("Error saving receipt:", errorData);
-        return receiptJSON;
+        const errorMessage = errorData.error || 'Unknown error occurred';
+        console.error("Error saving receipt:", errorMessage);
+        throw new Error(`Error saving receipt: ${errorMessage}`);
       }
       
       // Get the API response with alternatives
       const data = await response.json();
-      console.log("⭐ API RESPONSE RECEIVED:", data);
       
-      // Log what we received from the server
-      if (data.items && Array.isArray(data.items)) {
-        console.log(`⭐ Received ${data.items.length} items from API`);
-        console.log(`⭐ ${data.items_with_alternatives} of them have alternatives`);
-        
-        // Check if we have alternatives in the response
-        const serverItemsWithAlts = data.items.filter((item: any) => item.cheaper_alternative);
-        console.log(`⭐ Found ${serverItemsWithAlts.length} items with alternatives in response`);
-        
-        serverItemsWithAlts.forEach((item: any) => {
-          console.log(`⭐ Server item ${item.name || item.original_item_name} has alternative:`, item.cheaper_alternative);
-        });
-        
-        // CRITICAL FIX: Create a new receiptJSON object with the alternatives from the server
-        const updatedReceiptJSON = {
-          ...receiptJSON,
-          items: receiptJSON.items.map((item, index) => {
-            // Find the matching item from server response
-            const matchingServerItem = data.items.find((serverItem: any) => 
-              (serverItem.name && item.name && serverItem.name.includes(item.name)) ||
-              (serverItem.original_item_name && item.name && serverItem.original_item_name.includes(item.name)) ||
-              (item.name && serverItem.name && item.name.includes(serverItem.name)) ||
-              false
-            );
-            
-            // If we found a match and it has an alternative, add it to our item
-            if (matchingServerItem && matchingServerItem.cheaper_alternative) {
-              console.log(`✅ Adding alternative for ${item.name}: ${matchingServerItem.cheaper_alternative.item_name}`);
-              
-              // Make sure all properties are properly formatted as numbers
-              const cleanAlternative = {
-                store_name: matchingServerItem.cheaper_alternative.store_name || "Unknown Store",
-                item_name: matchingServerItem.cheaper_alternative.item_name || "Alternative Product",
-                price: typeof matchingServerItem.cheaper_alternative.price === 'string' 
-                  ? parseFloat(matchingServerItem.cheaper_alternative.price) 
-                  : Number(matchingServerItem.cheaper_alternative.price) || 0,
-                savings: typeof matchingServerItem.cheaper_alternative.savings === 'string' 
-                  ? parseFloat(matchingServerItem.cheaper_alternative.savings) 
-                  : Number(matchingServerItem.cheaper_alternative.savings) || 0,
-                percentage_savings: typeof matchingServerItem.cheaper_alternative.percentage_savings === 'string' 
-                  ? parseFloat(matchingServerItem.cheaper_alternative.percentage_savings) 
-                  : Number(matchingServerItem.cheaper_alternative.percentage_savings) || 0
-              };
-              
-              return {
-                ...item,
-                cheaper_alternative: cleanAlternative
-              };
-            }
-            
-            return item;
-          })
-        } as ReceiptJSON;
-        
-        // Final verification
-        const finalItemsWithAlts = updatedReceiptJSON.items.filter(item => item.cheaper_alternative);
-        console.log(`🔍 FINAL CHECK: ${finalItemsWithAlts.length} items have alternatives in the updated receiptJSON`);
-        
-        if (finalItemsWithAlts.length > 0) {
-          finalItemsWithAlts.forEach((item, i) => {
-            console.log(`📋 Final item ${i+1}: ${item.name} has alternative: ${item.cheaper_alternative?.item_name} at $${item.cheaper_alternative?.price} (${item.cheaper_alternative?.percentage_savings}% savings)`);
-          });
-        }
-        
-        return updatedReceiptJSON;
+      if (!data || !data.success) {
+        console.error("Invalid response format:", data);
+        throw new Error('Invalid response from server');
       }
       
-      return receiptJSON;
+      // Update the receipt JSON with the processed data
+      const processedReceipt = {
+        ...receiptJSON,
+        items: data.items || receiptJSON.items
+      };
+      
+      console.log("Receipt saved successfully with alternatives");
+      return processedReceipt;
+      
     } catch (error) {
-      console.error("Error saving receipt to Supabase:", error);
-      return receiptJSON;
+      console.error("Error in saveReceiptToSupabase:", error);
+      throw error instanceof Error ? error : new Error('Failed to save receipt');
     }
   };
 

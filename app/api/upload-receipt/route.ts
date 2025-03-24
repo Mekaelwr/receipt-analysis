@@ -44,16 +44,18 @@ async function processReceiptImage(imageFile: File): Promise<string> {
   const receipt_id = uuidv4();
   const arrayBuffer = await imageFile.arrayBuffer();
   
-  // Store image directly in Supabase storage
+  // Store image in the default public bucket
   const { data, error } = await supabase
     .storage
-    .from('receipt-images')
-    .upload(`${receipt_id}.jpg`, arrayBuffer, {
+    .from('public')  // Changed from 'receipt-images' to 'public'
+    .upload(`receipts/${receipt_id}.jpg`, arrayBuffer, {
       contentType: 'image/jpeg',
-      cacheControl: '3600'
+      cacheControl: '3600',
+      upsert: true  // Added upsert option
     });
 
   if (error) {
+    console.error('Storage error details:', error);
     throw new Error(`Failed to upload image: ${error.message}`);
   }
 
@@ -75,7 +77,17 @@ export async function POST(request: Request) {
       );
     }
 
-    const receipt_id = await processReceiptImage(imageFile);
+    let receipt_id;
+    try {
+      receipt_id = await processReceiptImage(imageFile);
+    } catch (uploadError) {
+      console.error('Error uploading image:', uploadError);
+      return NextResponse.json(
+        { error: 'Failed to upload image to storage' },
+        { status: 500 }
+      );
+    }
+
     console.log('Received request to upload receipt');
     
     // If receiptData is not provided, we'll analyze the image with OpenAI
@@ -152,16 +164,16 @@ export async function POST(request: Request) {
     const arrayBuffer = await imageFile.arrayBuffer();
     const { data: storageData, error: storageError } = await supabase
       .storage
-      .from('receipts')
+      .from('public')  // Changed from 'receipts' to 'public'
       .upload(`receipts/${fileName}`, arrayBuffer, {
         contentType: imageFile.type,
-        upsert: false
+        upsert: true  // Added upsert option
       });
     
     if (storageError) {
       console.error('Error uploading image to storage:', storageError);
       return NextResponse.json(
-        { error: 'Failed to upload image' },
+        { error: `Failed to upload image: ${storageError.message}` },
         { status: 500 }
       );
     }
@@ -169,7 +181,7 @@ export async function POST(request: Request) {
     // Get the public URL for the uploaded image
     const { data: { publicUrl } } = supabase
       .storage
-      .from('receipts')
+      .from('public')  // Changed from 'receipts' to 'public'
       .getPublicUrl(`receipts/${fileName}`);
     
     // Extract receipt information from the parsed data
