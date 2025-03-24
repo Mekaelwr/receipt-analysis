@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPiggyBank, faReceipt } from '@fortawesome/free-solid-svg-icons';
 import styles from './receipt-shared.module.css';
-import { ReceiptDisplay } from './ReceiptDisplay';
+import { ReceiptDisplay, ReceiptData } from './ReceiptDisplay';
 
 // Define the receipt JSON structure
 interface ReceiptJSON {
@@ -72,26 +72,73 @@ interface ReceiptJSON {
   };
 }
 
-// Helper function to format receipt data
-function formatReceiptData(json: ReceiptJSON) {
+// Define the ReceiptData type
+interface ReceiptData {
+  store: string;
+  address: string;
+  date: string;
+  items: Array<{
+    id: string;
+    name: string;
+    price: string;
+    cheaper_alternative?: {
+      store_name: string;
+      price: string;
+      item_name: string;
+      savings: string;
+      percentage_savings: string;
+    };
+  }>;
+  totals: {
+    subtotal: string;
+    tax: string;
+    total: string;
+  };
+  totalSavings: string;
+}
+
+// Format receipt data for display
+const formatReceiptData = (receipt: ReceiptJSON): ReceiptData => {
+  if (!receipt) {
+    // Return empty receipt data structure instead of null
+    return {
+      store: 'Unknown Store',
+      address: '',
+      date: '',
+      items: [],
+      totals: {
+        subtotal: '$0.00',
+        tax: '$0.00',
+        total: '$0.00'
+      },
+      totalSavings: '$0.00'
+    };
+  }
+
   return {
-    store: json.store_information.name,
-    address: json.store_information.address,
-    date: `${json.purchase_details.date} at ${json.purchase_details.time}`,
-    items: json.items.map((item, index) => ({
+    store: receipt.store_information?.name || 'Unknown Store',
+    address: receipt.store_information?.address || '',
+    date: `${receipt.purchase_details?.date || ''} at ${receipt.purchase_details?.time || ''}`,
+    items: receipt.items.map((item, index) => ({
       id: index.toString(),
       name: item.name,
-      price: `$${item.final_price.toFixed(2)}`,
-      cheaper_alternative: item.cheaper_alternative
+      price: `$${Number(item.final_price || 0).toFixed(2)}`,
+      cheaper_alternative: item.cheaper_alternative ? {
+        store_name: item.cheaper_alternative.store_name,
+        price: Number(item.cheaper_alternative.price || 0),
+        item_name: item.cheaper_alternative.item_name,
+        savings: Number(item.cheaper_alternative.savings || 0),
+        percentage_savings: Number(item.cheaper_alternative.percentage_savings || 0)
+      } : undefined
     })),
     totals: {
-      subtotal: `$${json.financial_summary.subtotal.toFixed(2)}`,
-      tax: `$${json.financial_summary.total_taxes.toFixed(2)}`,
-      total: `$${json.financial_summary.total_amount.toFixed(2)}`
+      subtotal: `$${Number(receipt.financial_summary?.subtotal || 0).toFixed(2)}`,
+      tax: `$${Number(receipt.financial_summary?.total_taxes || 0).toFixed(2)}`,
+      total: `$${Number(receipt.financial_summary?.total_amount || 0).toFixed(2)}`
     },
-    totalSavings: `$${json.savings_summary.total_savings.toFixed(2)}`
+    totalSavings: `$${Number(receipt.financial_summary?.total_discounts || 0).toFixed(2)}`
   };
-}
+};
 
 export function ReceiptUploader() {
   const [fileName, setFileName] = useState<string | null>(null);

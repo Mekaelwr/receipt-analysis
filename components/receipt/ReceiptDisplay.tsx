@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPiggyBank } from '@fortawesome/free-solid-svg-icons';
 import styles from './receipt-shared.module.css';
 
-interface ReceiptItem {
+export interface ReceiptItem {
   id: string;
   name: string;
   price: string;
@@ -17,7 +17,7 @@ interface ReceiptItem {
   };
 }
 
-interface ReceiptData {
+export interface ReceiptData {
   store: string;
   address: string;
   date: string;
