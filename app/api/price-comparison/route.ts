@@ -4,9 +4,9 @@ import { NextResponse } from 'next/server';
 export const runtime = 'edge';
 
 // Initialize Supabase client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Exported interfaces for use in other files
 export interface ReceiptItem {
@@ -36,185 +36,83 @@ export interface ProcessedItem {
   category: string;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const receiptId = searchParams.get('receipt_id');
+  const debug = searchParams.get('debug') === 'true';
+  
+  console.log(`Processing receipt: ${receiptId}, debug mode: ${debug}`);
+
+  if (!receiptId) {
+    return NextResponse.json({ error: 'receipt_id is required' }, { status: 400 });
+  }
+
   try {
-    console.log("Price comparison API called");
-    
-    // Check if the database function exists
-    const functionExists = false;
-    let functionCheckError = null;
-    
-    try {
-      const result = await supabase.rpc(
-        'get_items_with_cheaper_alternatives',
-        {},
-        { count: 'exact', head: true }
-      );
-      functionCheckError = result.error;
-    } catch (err) {
-      functionCheckError = err;
+    // Call the RPC function to find cheaper alternatives
+    const startTime = Date.now();
+    const { data, error } = await supabase
+      .rpc('find_receipt_cheaper_alternatives', { receipt_id: receiptId });
+    const endTime = Date.now();
+
+    if (error) {
+      console.error('Error finding cheaper alternatives:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    
-    if (functionCheckError) {
-      console.error("Function check error:", functionCheckError);
-      
-      // Check if the error is because the function doesn't exist
-      const errorMessage = functionCheckError instanceof Error 
-        ? functionCheckError.message 
-        : String(functionCheckError);
-        
-      if (errorMessage.includes('function') && errorMessage.includes('does not exist')) {
-        return NextResponse.json(
-          { 
-            error: 'Database function not found', 
-            message: 'The required database function "get_items_with_cheaper_alternatives" does not exist. Please run "npm run db:setup-price-comparison" to set it up.',
-            details: functionCheckError
-          },
-          { status: 500 }
-        );
+
+    if (debug) {
+      console.log(`Query execution time: ${endTime - startTime}ms`);
+      console.log(`Found ${data ? data.length : 0} cheaper alternatives`);
+      if (data && data.length > 0) {
+        console.log('Sample alternative:', data[0]);
       }
-      
-      throw functionCheckError;
     }
+
+    // Return the results
+    return NextResponse.json({
+      data,
+      count: data ? data.length : 0,
+      execution_time_ms: endTime - startTime,
+      debug_info: debug ? {
+        receipt_id: receiptId,
+        query_time: endTime - startTime,
+        alternative_count: data ? data.length : 0,
+        function_name: 'find_receipt_cheaper_alternatives'
+      } : null
+    });
+  } catch (error) {
+    console.error('Error in price comparison endpoint:', error);
+    return NextResponse.json({ error: 'Server error processing request' }, { status: 500 });
+  }
+}
+
+export async function fetchReceiptComparisons(receiptId: string): Promise<PriceComparison[]> {
+  try {
+    console.log(`Fetching comparisons for receipt: ${receiptId}`);
     
-    // Try to get data from the function
-    const { data, error } = await supabase.rpc('get_items_with_cheaper_alternatives');
+    // Call the Supabase RPC function to get comparisons
+    const { data, error } = await supabase
+      .rpc('find_receipt_cheaper_alternatives', { receipt_id: receiptId });
     
     if (error) {
-      console.error("Error calling function:", error);
-      throw error;
+      console.error('Error fetching comparisons:', error);
+      return [];
     }
     
-    // If no data is returned, try a direct query approach
-    if (!data || data.length === 0) {
-      console.log("No data from function, trying direct query");
-      
-      // Get user's purchased items with their prices and stores
-      const { data: userItems, error: userItemsError } = await supabase
-        .from('receipt_items')
-        .select(`
-          standardized_item_name,
-          final_price,
-          quantity,
-          category,
-          receipts:receipt_id (
-            store_name
-          )
-        `)
-        .not('standardized_item_name', 'is', null);
-
-      if (userItemsError) {
-        console.error("Error fetching user items:", userItemsError);
-        throw userItemsError;
-      }
-
-      // Get cheapest prices for each standardized item across all stores
-      const { data: cheapestPrices, error: cheapestPricesError } = await supabase
-        .from('item_price_comparison')
-        .select('standardized_item_name, store_name, min_price')
-        .gt('min_price', 0);
-
-      if (cheapestPricesError) {
-        console.error("Error fetching cheapest prices:", cheapestPricesError);
-        throw cheapestPricesError;
-      }
-      
-      console.log(`Found ${userItems?.length || 0} user items and ${cheapestPrices?.length || 0} price comparison records`);
-      
-      // If we don't have enough data for comparison, return diagnostic info
-      if (!userItems?.length || !cheapestPrices?.length) {
-        return NextResponse.json(
-          { 
-            items: [], 
-            diagnostics: {
-              userItemsCount: userItems?.length || 0,
-              cheapestPricesCount: cheapestPrices?.length || 0,
-              message: "Not enough data for price comparison. Upload more receipts or run the standardization process."
-            }
-          }
-        );
-      }
-
-      // Process the data to find items with cheaper alternatives
-      const processedItems = [];
-      
-      for (const item of userItems) {
-        const unitPrice = item.final_price / (item.quantity || 1);
-        
-        // Handle the receipts data structure safely
-        let storeName = null;
-        if (item.receipts) {
-          if (Array.isArray(item.receipts) && item.receipts.length > 0) {
-            storeName = item.receipts[0].store_name;
-          } else if (typeof item.receipts === 'object' && item.receipts !== null) {
-            storeName = (item.receipts as { store_name: string }).store_name;
-          }
-        }
-        
-        if (!storeName || !item.standardized_item_name) continue;
-        
-        // Find the cheapest price for this item
-        const cheaperAlternatives = cheapestPrices
-          .filter(cp => 
-            cp.standardized_item_name === item.standardized_item_name && 
-            cp.store_name !== storeName &&
-            cp.min_price < unitPrice
-          )
-          .sort((a, b) => a.min_price - b.min_price);
-        
-        if (cheaperAlternatives.length > 0) {
-          const cheapest = cheaperAlternatives[0];
-          const priceDifference = unitPrice - cheapest.min_price;
-          const percentageSavings = (priceDifference / unitPrice) * 100;
-          
-          processedItems.push({
-            item_name: item.standardized_item_name,
-            your_store: storeName,
-            your_price: unitPrice,
-            cheapest_store: cheapest.store_name,
-            cheapest_price: cheapest.min_price,
-            price_difference: priceDifference,
-            percentage_savings: percentageSavings,
-            category: item.category
-          });
-        }
-      }
-      
-      // Remove duplicates (keep the one with highest savings for each item)
-      const uniqueItemsMap = new Map();
-      
-      for (const item of processedItems) {
-        const existingItem = uniqueItemsMap.get(item.item_name);
-        
-        if (!existingItem || item.percentage_savings > existingItem.percentage_savings) {
-          uniqueItemsMap.set(item.item_name, item);
-        }
-      }
-      
-      const uniqueItems = Array.from(uniqueItemsMap.values());
-      
-      return NextResponse.json(uniqueItems);
-    }
+    // Add detailed logging of the returned data
+    console.log(`Found ${data?.length || 0} comparisons`);
+    console.log('Raw comparison data:', JSON.stringify(data, null, 2));
     
-    // Ensure we always return an array even if there's no data
-    return NextResponse.json([]);
-  } catch (error: Error | unknown) {
-    console.error('Error in price comparison API:', error);
+    // Direct check for honey mustard comparison
+    const { data: honeyMustardItems } = await supabase
+      .from('receipt_items')
+      .select('id, item_name, standardized_item_name, item_price, receipt_id')
+      .ilike('item_name', '%honey%mustard%');
+
+    console.log('Honey mustard items in database:', honeyMustardItems);
     
-    // Provide detailed error information
-    const err = error as { message?: string; code?: string; hint?: string; details?: string; stack?: string };
-    return NextResponse.json(
-      { 
-        error: 'Failed to retrieve price comparison data',
-        message: err.message || 'Unknown error',
-        details: {
-          code: err.code,
-          hint: err.hint,
-          details: err.details,
-          stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-        }
-      },
-      { status: 500 }
-    );
+    return data || [];
+  } catch (error) {
+    console.error('Error in comparison service:', error);
+    return [];
   }
 } 

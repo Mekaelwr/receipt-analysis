@@ -25,7 +25,9 @@ interface ReceiptJSON {
     cheaper_alternative?: {
       store_name: string;
       price: number;
+      item_name: string;
       savings: number;
+      percentage_savings: number;
     };
   }>;
   taxes: Array<{
@@ -72,7 +74,9 @@ interface ReceiptAnalysisProps {
 interface CheaperAlternative {
   store_name: string;
   price: number;
+  item_name: string;
   savings: number;
+  percentage_savings: number;
 }
 
 interface ReceiptItem {
@@ -84,12 +88,29 @@ interface ReceiptItem {
 
 export function ReceiptAnalysis({ analysisText, receiptJSON }: ReceiptAnalysisProps) {
   // Log the received data for debugging
-  console.log("ReceiptAnalysis component received:");
-  console.log("- analysisText:", analysisText ? (typeof analysisText === 'string' ? "Text string" : "JSON object") : "null");
-  console.log("- receiptJSON:", receiptJSON ? "Present" : "null");
+  console.log("%c🔎 DEBUG: ReceiptAnalysis component received data", "background: #e8f5e9; color: #2e7d32; font-weight: bold; padding: 5px; border-radius: 5px;");
+  console.log("* analysisText length:", analysisText ? analysisText.length : "null", "characters");
+  console.log("* receiptJSON:", receiptJSON ? "Present" : "null");
   
-  if (receiptJSON) {
-    console.log("Receipt JSON structure:", JSON.stringify(receiptJSON, null, 2));
+  // Super detailed inspection of alternatives
+  if (receiptJSON && receiptJSON.items) {
+    console.log("%c🧾 Receipt Items Structure Check", "background: #e8f5e9; color: #2e7d32; font-weight: bold; padding: 5px; border-radius: 5px;");
+    console.log(`Found ${receiptJSON.items.length} items in receipt`);
+    
+    const itemsWithAlts = receiptJSON.items.filter(item => item.cheaper_alternative);
+    console.log(`🎯 Found ${itemsWithAlts.length} items with alternatives directly in receiptJSON`);
+    
+    if (itemsWithAlts.length > 0) {
+      console.log("Items with alternatives:");
+      itemsWithAlts.forEach((item, i) => {
+        console.log(`Item #${i+1}: ${item.name}`);
+        console.dir(item.cheaper_alternative);
+      });
+    } else {
+      console.log("NO ALTERNATIVES FOUND IN RECEIPT JSON - THIS IS THE ISSUE");
+      console.log("Entire receiptJSON structure:");
+      console.dir(receiptJSON, { depth: null });
+    }
   }
   
   // Legacy parsing function for backward compatibility
@@ -265,7 +286,9 @@ export function ReceiptAnalysis({ analysisText, receiptJSON }: ReceiptAnalysisPr
         result.cheaper_alternative = {
           store_name: item.cheaper_alternative.store_name,
           price: item.cheaper_alternative.price,
-          savings: item.cheaper_alternative.savings
+          item_name: item.cheaper_alternative.item_name,
+          savings: item.cheaper_alternative.savings,
+          percentage_savings: item.cheaper_alternative.percentage_savings || 0
         };
       }
       
@@ -295,12 +318,90 @@ export function ReceiptAnalysis({ analysisText, receiptJSON }: ReceiptAnalysisPr
   // Log the data being used for rendering
   console.log("Receipt data for rendering:", receiptData);
   
+  // Calculate total potential savings from cheaper alternatives
+  const itemsWithAlternatives = receiptData.items.filter(item => item.cheaper_alternative);
+  const totalSavings = itemsWithAlternatives.reduce((sum, item) => {
+    if (!item.cheaper_alternative) return sum;
+    
+    const originalPrice = typeof item.price === 'string' 
+      ? parseFloat(item.price.replace('$', '')) 
+      : Number(item.price) || 0;
+      
+    const alternativePrice = typeof item.cheaper_alternative.price === 'string'
+      ? parseFloat(String(item.cheaper_alternative.price).replace('$', ''))
+      : Number(item.cheaper_alternative.price) || 0;
+      
+    const itemSavings = item.cheaper_alternative.savings || (originalPrice - alternativePrice);
+    
+    console.log(`Calculating savings for ${item.name}: Original $${originalPrice} → Alternative $${alternativePrice} = Savings $${itemSavings}`);
+    
+    return sum + (itemSavings > 0 ? itemSavings : 0);
+  }, 0);
+  
+  // Debug logging for alternatives
+  console.log("🔍 RECEIPT RENDERING DEBUG:");
+  console.log(`Found ${itemsWithAlternatives.length} items with alternatives`);
+  console.dir(receiptJSON, { depth: null });
+
+  if (itemsWithAlternatives.length > 0) {
+    console.log("Items with alternatives:");
+    itemsWithAlternatives.forEach(item => {
+      console.log(`- ${item.name}: ${item.cheaper_alternative?.item_name} at $${item.cheaper_alternative?.price.toFixed(2)} (Save ${item.cheaper_alternative?.percentage_savings.toFixed(2)}%)`);
+    });
+  }
+  
+  // Debug for all items
+  console.log("All receipt items:");
+  receiptData.items.forEach((item, index) => {
+    console.log(`${index+1}. ${item.name} - Has alternative: ${item.cheaper_alternative ? "YES" : "NO"}`);
+    if (receiptJSON && receiptJSON.items[index] && receiptJSON.items[index].cheaper_alternative) {
+      console.log(`   Original JSON has alternative: ${JSON.stringify(receiptJSON.items[index].cheaper_alternative)}`);
+    }
+  });
+  
   return (
     <div className={styles.receiptWrapper}>
       <div className={styles.receiptHero}>
         <h2 className={styles.receiptTitle}>
           Receipt Analysis <span className={styles.receiptHighlight}>Complete</span>
         </h2>
+        
+        {/* Direct alternatives display - will show regardless of component-level issues */}
+        {itemsWithAlternatives.length > 0 && (
+          <div style={{ 
+            backgroundColor: '#e8f5e9', 
+            padding: '15px', 
+            borderRadius: '8px',
+            marginBottom: '15px',
+            color: '#2e7d32',
+            textAlign: 'left',
+            fontWeight: 'bold'
+          }}>
+            <div style={{ fontSize: '18px', marginBottom: '10px' }}>🔍 Found {itemsWithAlternatives.length} Cheaper Alternatives! Save ${totalSavings.toFixed(2)}</div>
+            {itemsWithAlternatives.map((item, idx) => (
+              <div key={idx} style={{ 
+                marginBottom: '10px', 
+                display: 'flex',
+                justifyContent: 'space-between',
+                borderBottom: idx < itemsWithAlternatives.length - 1 ? '1px dashed #a5d6a7' : 'none',
+                paddingBottom: '8px'
+              }}>
+                <div>
+                  <div style={{ fontWeight: 'bold' }}>{item.name}</div>
+                  <div style={{ color: '#43a047' }}>
+                    Instead buy: {item.cheaper_alternative?.item_name}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ textDecoration: 'line-through' }}>${item.price}</div>
+                  <div style={{ fontWeight: 'bold', color: '#43a047' }}>
+                    ${item.cheaper_alternative?.price.toFixed(2)} ({item.cheaper_alternative?.percentage_savings.toFixed(0)}% off)
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         
         <div className={styles.receipt}>
           <div className={styles.receiptStore}>{receiptData.store}</div>
@@ -314,6 +415,21 @@ export function ReceiptAnalysis({ analysisText, receiptJSON }: ReceiptAnalysisPr
           {receiptData.date && (
             <div className={styles.receiptDate}>{receiptData.date}</div>
           )}
+          
+          {/* Savings Summary */}
+          {itemsWithAlternatives.length > 0 && (
+            <>
+              <div className={styles.receiptDivider}></div>
+              <div className={styles.savingsSummary}>
+                <div>
+                  <i className="fa-solid fa-piggy-bank" aria-hidden="true"></i>
+                  <span className={styles.savingsText}>Found {itemsWithAlternatives.length} cheaper alternatives!</span>
+                </div>
+                <span className={styles.savingsAmount}>Save ${totalSavings.toFixed(2)}</span>
+              </div>
+            </>
+          )}
+          
           <div className={styles.receiptDivider}></div>
 
           {receiptData.items && receiptData.items.length > 0 ? (
@@ -328,7 +444,6 @@ export function ReceiptAnalysis({ analysisText, receiptJSON }: ReceiptAnalysisPr
                       {receiptJSON && 
                        receiptJSON.items && 
                        parseInt(item.id) > 0 &&
-                       parseInt(item.id) <= receiptJSON.items.length && 
                        receiptJSON.items[parseInt(item.id) - 1] && 
                        receiptJSON.items[parseInt(item.id) - 1].quantity > 1 && (
                         <span className={styles.receiptQuantity}>
@@ -346,9 +461,14 @@ export function ReceiptAnalysis({ analysisText, receiptJSON }: ReceiptAnalysisPr
                       <div className={styles.receiptNumber}>
                         <i className="fa-solid fa-piggy-bank" aria-hidden="true"></i>
                       </div>
-                      <span>Better price at {item.cheaper_alternative.store_name}</span>
+                      <div className={styles.savingsInfo}>
+                        <span>{item.cheaper_alternative.item_name || `Better price at ${item.cheaper_alternative.store_name}`}</span>
+                        <span className={styles.savingsPercent}>
+                          Save {(item.cheaper_alternative.percentage_savings || 0).toFixed(0)}%
+                        </span>
+                      </div>
                       <span className={styles.savingsPrice}>
-                        ${item.cheaper_alternative.price.toFixed(2)}
+                        ${(typeof item.cheaper_alternative.price === 'number' ? item.cheaper_alternative.price : parseFloat(String(item.cheaper_alternative.price))).toFixed(2)}
                       </span>
                     </div>
                   )}

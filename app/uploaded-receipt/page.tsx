@@ -15,9 +15,24 @@ export default function UploadedReceipt() {
         id: "03",
         name: "Milk",
         price: "$5.39",
-        savings: {
-          store: "jewel osco",
-          price: "$2.49"
+        cheaper_alternative: {
+          store_name: "Jewel Osco",
+          price: 2.49,
+          item_name: "Jewel Osco Brand Milk",
+          savings: 2.90,
+          percentage_savings: 53.8
+        }
+      },
+      {
+        id: "04",
+        name: "Orange Juice",
+        price: "$4.99",
+        cheaper_alternative: {
+          store_name: "Whole Foods Market",
+          price: 3.69,
+          item_name: "Not From Concentrate Orange Juice No Pulp",
+          savings: 1.30,
+          percentage_savings: 26.05
         }
       }
     ],

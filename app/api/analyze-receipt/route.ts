@@ -29,6 +29,13 @@ interface ReceiptJSON {
       amount: number;
     }>;
     final_price: number;
+    cheaper_alternative?: {
+      store_name: string;
+      price: number;
+      item_name: string;
+      savings: number;
+      percentage_savings: number;
+    };
   }>;
   taxes: Array<{
     category: string;

@@ -220,8 +220,10 @@
 }
 
 .receiptItemSavings {
-  flex-direction: column;
-  padding-bottom: 0.5rem;
+  background-color: #e8f5e9;
+  border-radius: 6px;
+  border-left: 4px solid #4CAF50;
+  margin: 10px 0;
 }
 
 .receiptItemMain {
@@ -247,23 +249,61 @@
 
 .receiptPriceStrike {
   text-decoration: line-through;
-  color: #999;
+  color: #f44336;
 }
 
 .savingsRow {
   display: flex;
-  width: 100%;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: 0.25rem;
-  padding-left: 1.5rem;
-  font-size: 0.85rem;
+  padding: 8px 0;
+  border-top: 1px dashed #a5d6a7;
   color: #2e7d32;
+}
+
+.savingsInfo {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.savingsPercent {
+  font-size: 0.75rem;
+  font-weight: bold;
+  margin-top: 2px;
 }
 
 .savingsPrice {
   font-weight: bold;
   color: #2e7d32;
+  margin-right: 8px;
+}
+
+/* Savings Summary */
+.savingsSummary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  color: #4CAF50;
+  font-weight: bold;
+  background-color: #e8f5e9;
+  padding: 10px;
+  border-radius: 6px;
+  margin: 10px 0;
+  border: 1px solid #a5d6a7;
+}
+
+.savingsSummary i {
+  margin-right: 8px;
+  font-size: 16px;
+}
+
+.savingsText {
+  margin-left: 8px;
+}
+
+.savingsAmount {
+  color: #2e7d32;
+  font-size: 1.1em;
 }
 
 /* Stats Bar */
@@ -440,4 +480,27 @@
   width: 16px;
   height: 16px;
   cursor: pointer;
+}
+
+.testButtonContainer {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+  width: 100%;
+}
+
+.testButton {
+  background-color: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  color: #333;
+  transition: all 0.2s ease;
+}
+
+.testButton:hover {
+  background-color: #e0e0e0;
+  border-color: #ccc;
 } 

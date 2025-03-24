@@ -30,29 +30,6 @@ interface ReceiptItem {
   [key: string]: unknown;
 }
 
-/**
- * Helper function to safely handle errors and return them as JSON responses
- */
-function handleApiError(error: unknown) {
-  console.error('API Error:', error);
-  
-  // Determine the error message
-  let errorMessage = 'An unknown error occurred';
-  if (error instanceof Error) {
-    errorMessage = error.message;
-  } else if (typeof error === 'string') {
-    errorMessage = error;
-  } else if (error && typeof error === 'object') {
-    errorMessage = JSON.stringify(error);
-  }
-  
-  // Return a properly formatted JSON response
-  return NextResponse.json(
-    { error: errorMessage },
-    { status: 500 }
-  );
-}
-
 // Main API handler
 export async function POST(request: Request) {
   try {
@@ -121,7 +98,11 @@ export async function POST(request: Request) {
         parsedReceiptData = JSON.parse(aiResponseText);
         console.log('Successfully extracted receipt data from image');
       } catch (parseError) {
-        return handleApiError('Failed to parse AI response: ' + (parseError instanceof Error ? parseError.message : 'Unknown parsing error'));
+        console.error('Failed to parse AI response:', parseError);
+        return NextResponse.json(
+          { error: 'Failed to parse AI response' },
+          { status: 500 }
+        );
       }
     } else {
       // Parse the provided receipt data
@@ -148,7 +129,10 @@ export async function POST(request: Request) {
     
     if (storageError) {
       console.error('Error uploading image to storage:', storageError);
-      return handleApiError(`Failed to upload image: ${storageError.message || JSON.stringify(storageError)}`);
+      return NextResponse.json(
+        { error: 'Failed to upload image' },
+        { status: 500 }
+      );
     }
     
     // Get the public URL for the uploaded image
@@ -206,7 +190,10 @@ export async function POST(request: Request) {
     
     if (dbError) {
       console.error('Error inserting receipt record:', dbError);
-      return handleApiError(`Failed to save receipt data: ${dbError.message || JSON.stringify(dbError)}`);
+      return NextResponse.json(
+        { error: 'Failed to save receipt data' },
+        { status: 500 }
+      );
     }
     
     // Insert receipt items
@@ -305,72 +292,248 @@ export async function POST(request: Request) {
       }
     }
     
+    // Add detailed logs to debug alternatives
+    if (parsedReceiptData.items && parsedReceiptData.items.length > 0) {
+      const itemsWithAlts = parsedReceiptData.items.filter((item: any) => item.cheaper_alternative).length;
+      console.log(`FINAL CHECK: Found ${itemsWithAlts} items with alternatives out of ${parsedReceiptData.items.length}`);
+      
+      if (itemsWithAlts > 0) {
+        parsedReceiptData.items.forEach((item: any) => {
+          if (item.cheaper_alternative) {
+            console.log(`Item ${item.name} has alternative: ${item.cheaper_alternative.item_name} at ${item.cheaper_alternative.store_name} for $${item.cheaper_alternative.price} (savings: ${item.cheaper_alternative.percentage_savings}%)`);
+          }
+        });
+      }
+    }
+    
+    // Define the type for receipt items 
+    type ReceiptItemWithId = {
+      receipt_id: string;
+      original_item_name: string;
+      standardized_item_name?: string;
+      item_price?: number | string;
+      [key: string]: any;
+    };
+    
+    // Get the inserted receipt items with their IDs
+    const { data: receiptItems, error: getItemsError } = await supabase
+      .from('receipt_items')
+      .select('*')
+      .eq('receipt_id', receiptRecord.id);
+      
+    if (getItemsError) {
+      console.error('Error retrieving inserted receipt items:', getItemsError);
+    } else {
+      console.log(`Retrieved ${receiptItems?.length || 0} receipt items for forming response`);
+    }
+    
+    // IMPORTANT: Verify alternatives are correctly structured in the response
+    const itemsWithAlternativesForResponse = (receiptItems || [])
+      .filter((item: ReceiptItemWithId) => item.receipt_id && item.standardized_item_name)
+      .map((item: ReceiptItemWithId, index: number) => {
+        // Find the original item from parsed data
+        const originalItem = parsedReceiptData.items && parsedReceiptData.items[index];
+        
+        // Check if this item has an alternative
+        const hasAlternative = originalItem && originalItem.cheaper_alternative;
+        
+        if (hasAlternative) {
+          console.log(`⭐ API RESPONSE: Item ${originalItem.name} WILL INCLUDE alternative: ${originalItem.cheaper_alternative.item_name}`);
+        }
+        
+        return {
+          receipt_id: item.receipt_id,
+          name: item.original_item_name || '',
+          original_item_name: item.original_item_name || '',
+          price: parseFloat(item.item_price?.toString() || '0'),
+          standardized_name: item.standardized_item_name || '',
+          cheaper_alternative: hasAlternative ? {
+            store_name: originalItem.cheaper_alternative.store_name || 'Unknown',
+            price: typeof originalItem.cheaper_alternative.price === 'string' ?
+              parseFloat(originalItem.cheaper_alternative.price) :
+              Number(originalItem.cheaper_alternative.price) || 0,
+            item_name: originalItem.cheaper_alternative.item_name || '',
+            savings: typeof originalItem.cheaper_alternative.savings === 'string' ?
+              parseFloat(originalItem.cheaper_alternative.savings) :
+              Number(originalItem.cheaper_alternative.savings) || 0,
+            percentage_savings: typeof originalItem.cheaper_alternative.percentage_savings === 'string' ?
+              parseFloat(originalItem.cheaper_alternative.percentage_savings) :
+              Number(originalItem.cheaper_alternative.percentage_savings) || 0
+          } : undefined
+        };
+      });
+    
+    // Log the final response items with alternatives
+    const finalResponseAlternatives = itemsWithAlternativesForResponse.filter(item => item.cheaper_alternative);
+    console.log(`🚀 RESPONSE: Sending ${finalResponseAlternatives.length} items with alternatives`);
+    finalResponseAlternatives.forEach(item => {
+      console.log(`📦 ${item.name} → ${item.cheaper_alternative?.item_name} at $${item.cheaper_alternative?.price} (${item.cheaper_alternative?.percentage_savings}% savings)`);
+    });
+    
+    // Format and send the response
+    console.log(`🚀 RESPONSE: Sending ${itemsWithAlternativesForResponse.length} items with alternatives`);
+    
     return NextResponse.json({
       success: true,
       receipt_id: receiptRecord.id,
       receipt_url: publicUrl,
       items_count: parsedReceiptData.items?.length || 0,
-      items_with_alternatives: parsedReceiptData.items?.filter((item: any) => item.cheaper_alternative).length || 0
+      items: itemsWithAlternativesForResponse, // Use our explicitly formatted items
+      items_with_alternatives: finalResponseAlternatives.length
     });
     
   } catch (error) {
-    return handleApiError(error);
+    console.error('Error processing receipt upload:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to process receipt' },
+      { status: 500 }
+    );
   }
 }
 
 // Function to find cheaper alternatives for items
 async function findCheaperAlternatives(items: ReceiptItem[], storeName: string) {
   const itemsWithAlternatives = [];
+  let alternativesCount = 0;
+  
+  console.log(`Searching for cheaper alternatives for ${items.length} items from ${storeName}`);
   
   for (const item of items) {
     // Skip items without a name or price
-    if (!item.name || !item.price) continue;
+    if (!item.name || !item.price) {
+      console.log(`Skipping item without name or price: ${JSON.stringify(item)}`);
+      continue;
+    }
     
-    // Get the standardized name (which should be set by the standardizeItems function)
+    // Get the standardized name
     const standardizedName = item.standardized_name || '';
     
     if (!standardizedName) {
+      console.log(`Item has no standardized name: ${item.name}`);
       itemsWithAlternatives.push(item);
       continue;
     }
     
-    // Look for the same item at other stores
-    const { data: alternatives, error } = await supabase
-      .from('product_prices')
-      .select('store_name, price, standardized_item_name')
-      .ilike('standardized_item_name', standardizedName)
-      .neq('store_name', storeName)
-      .order('price', { ascending: true })
-      .limit(5);
+    console.log(`Processing item: ${item.name} (${standardizedName}) - price: ${item.price}`);
     
-    if (error) {
-      console.error('Error finding alternatives:', error);
-      itemsWithAlternatives.push(item);
-      continue;
-    }
-    
-    // Find the cheapest alternative
-    const cheaperAlternatives = alternatives?.filter(alt => 
-      parseFloat(alt.price) < parseFloat(item.price)
-    ) || [];
-    
-    if (cheaperAlternatives.length > 0) {
-      // Get the cheapest alternative
-      const cheapestAlternative = cheaperAlternatives[0];
+    try {
+      // First approach: Use receipt_items table with more flexible matching
+      const { data: alternativesFromReceipts, error: receiptsError } = await supabase
+        .from('receipt_items')
+        .select(`
+          id,
+          standardized_item_name,
+          detailed_name,
+          item_price,
+          receipts:receipts(id, store_name)
+        `)
+        .or(`standardized_item_name.ilike.%${standardizedName}%,standardized_item_name.eq.${standardizedName}`)
+        .lt('item_price', item.price ? parseFloat(item.price.toString()) : 0);
       
-      itemsWithAlternatives.push({
-        ...item,
-        cheaper_alternative: {
-          store_name: cheapestAlternative.store_name,
-          price: cheapestAlternative.price,
-          savings: parseFloat(item.price) - parseFloat(cheapestAlternative.price)
-        }
-      });
-    } else {
+      // Filter out items from the wrong store and sort by price
+      const filteredAlternativesFromReceipts = alternativesFromReceipts
+        ?.filter(alt => alt.receipts && alt.receipts[0]?.store_name !== storeName)
+        .sort((a, b) => parseFloat(a.item_price.toString()) - parseFloat(b.item_price.toString()))
+        .slice(0, 5) || [];
+      
+      if (receiptsError) {
+        console.error('Error finding alternatives from receipts:', receiptsError);
+      }
+      
+      console.log(`Found ${filteredAlternativesFromReceipts.length} alternatives from receipts for ${item.name}`);
+      
+      // Second approach: Try the product_prices table as a fallback with more flexible matching
+      const { data: alternativesFromPrices, error: pricesError } = await supabase
+        .from('product_prices')
+        .select('store_name, price, standardized_item_name')
+        .or(`standardized_item_name.ilike.%${standardizedName}%,standardized_item_name.eq.${standardizedName}`)
+        .neq('store_name', storeName)
+        .lt('price', item.price ? parseFloat(item.price.toString()) : 0)
+        .order('price', { ascending: true })
+        .limit(5);
+        
+      // Try a third approach: Keyword matching for broader results
+      const keywords = (standardizedName || '').split(' ');
+      const mainKeyword = keywords.length > 1 ? keywords[keywords.length - 1] : standardizedName;
+      
+      const { data: keywordAlternativesFromPrices, error: keywordPricesError } = await supabase
+        .from('product_prices')
+        .select('store_name, price, standardized_item_name')
+        .ilike('standardized_item_name', `%${mainKeyword}%`)
+        .neq('store_name', storeName)
+        .lt('price', item.price ? parseFloat(item.price.toString()) : 0)
+        .order('price', { ascending: true })
+        .limit(5);
+      
+      if (pricesError) {
+        console.error('Error finding alternatives from product_prices:', pricesError);
+      }
+      
+      if (keywordPricesError) {
+        console.error('Error finding keyword alternatives from product_prices:', keywordPricesError);
+      }
+      
+      console.log(`Found ${alternativesFromPrices?.length || 0} direct alternatives and ${keywordAlternativesFromPrices?.length || 0} keyword alternatives from prices for ${item.name}`);
+      
+      // Prioritize alternatives from receipts, then fall back to product_prices
+      const cheaperAlternatives = [];
+      
+      if (filteredAlternativesFromReceipts.length > 0) {
+        // Format alternatives from receipts to match our expected structure
+        cheaperAlternatives.push(...filteredAlternativesFromReceipts.map(alt => ({
+          store_name: alt.receipts[0]?.store_name || 'Unknown',
+          price: alt.item_price,
+          item_name: alt.detailed_name || alt.standardized_item_name
+        })));
+      } else if (alternativesFromPrices && alternativesFromPrices.length > 0) {
+        // Format alternatives from product_prices
+        cheaperAlternatives.push(...alternativesFromPrices.map(alt => ({
+          store_name: alt.store_name,
+          price: alt.price,
+          item_name: alt.standardized_item_name
+        })));
+      } else if (keywordAlternativesFromPrices && keywordAlternativesFromPrices.length > 0) {
+        // Format keyword-based alternatives
+        cheaperAlternatives.push(...keywordAlternativesFromPrices.map(alt => ({
+          store_name: alt.store_name,
+          price: alt.price,
+          item_name: alt.standardized_item_name
+        })));
+      }
+      
+      if (cheaperAlternatives.length > 0) {
+        // Get the cheapest alternative
+        const cheapestAlternative = cheaperAlternatives[0];
+        const itemPrice = parseFloat(item.price?.toString() || '0');
+        const alternativePrice = parseFloat(cheapestAlternative.price?.toString() || '0');
+        const savings = itemPrice - alternativePrice;
+        const percentageSavings = (savings / itemPrice) * 100;
+        
+        alternativesCount++;
+        
+        console.log(`Found cheaper alternative for ${item.name}: ${cheapestAlternative.item_name} at ${cheapestAlternative.store_name} for $${alternativePrice} (savings: ${percentageSavings.toFixed(2)}%)`);
+        
+        itemsWithAlternatives.push({
+          ...item,
+          cheaper_alternative: {
+            store_name: cheapestAlternative.store_name || "Unknown",
+            price: alternativePrice,
+            item_name: cheapestAlternative.item_name || "Alternative product",
+            savings: savings,
+            percentage_savings: percentageSavings
+          }
+        });
+      } else {
+        console.log(`No cheaper alternatives found for ${item.name}`);
+        itemsWithAlternatives.push(item);
+      }
+    } catch (error) {
+      console.error(`Error processing alternatives for item ${item.name}:`, error);
       itemsWithAlternatives.push(item);
     }
   }
   
+  console.log(`Found cheaper alternatives for ${alternativesCount} out of ${items.length} items`);
   return itemsWithAlternatives;
 }
 
