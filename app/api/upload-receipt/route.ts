@@ -21,10 +21,32 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
+// Add interface for the cheaper prices response
+interface CheaperPrice {
+  original_item_name: string;
+  better_store: string;
+  better_price: number;
+  savings: number;
+  savings_percentage: number;
+  is_temporal: boolean;
+  better_date: string;
+}
+
 interface ReceiptItem {
-  name?: string;
-  price?: number;
+  name: string;
+  price: number;
   quantity?: number;
+  regular_price?: number;
+  final_price?: number;
+  cheaper_alternative?: {
+    store_name: string;
+    price: number;
+    item_name: string;
+    savings: number;
+    percentage_savings: number;
+    is_temporal: boolean;
+    better_date: string;
+  };
   [key: string]: unknown;
 }
 
@@ -37,6 +59,13 @@ interface ReceiptAlternative {
     id: string;
     store_name: string;
   };
+}
+
+interface StandardizedItem {
+  name: string;
+  detailed_name?: string;
+  standardized_name?: string;
+  category?: string;
 }
 
 // Modify file handling to use ArrayBuffer
@@ -188,24 +217,32 @@ export async function POST(request: Request) {
     const storeInfo = parsedReceiptData.store_information || {};
     const purchaseDetails = parsedReceiptData.purchase_details || {};
     const financialSummary = parsedReceiptData.financial_summary || {};
+    const allPatterns: Array<{original_pattern: string; standardized_name: string; category: string}> = [];
     
     // Apply post-processing to standardize items
     if (parsedReceiptData.items && parsedReceiptData.items.length > 0) {
       console.log(`Post-processing ${parsedReceiptData.items.length} items...`);
-      parsedReceiptData.items = await standardizeItems(parsedReceiptData.items);
-      
-      // Find cheaper alternatives if standardization was successful
-      if (parsedReceiptData.items && parsedReceiptData.items.length > 0 && storeInfo.name) {
-        console.log(`Looking for cheaper alternatives for ${parsedReceiptData.items.length} items from ${storeInfo.name}`);
+      try {
+        const originalItems = [...parsedReceiptData.items]; // Keep original items for comparison
+        parsedReceiptData.items = await standardizeItems(parsedReceiptData.items);
         
-        parsedReceiptData.items = await findCheaperAlternatives(
-          parsedReceiptData.items, 
-          storeInfo.name
-        );
-        
-        // Track how many items have cheaper alternatives
-        const itemsWithCheaperAlternatives = parsedReceiptData.items.filter((item: any) => item.cheaper_alternative).length;
-        console.log(`Found cheaper alternatives for ${itemsWithCheaperAlternatives} out of ${parsedReceiptData.items.length} items`);
+        // Log standardization results for each item
+        parsedReceiptData.items.forEach((item: StandardizedItem, index: number) => {
+          const original = originalItems[index];
+          console.log(`Standardization result for "${original.name}":`, {
+            original_name: original.name,
+            detailed_name: item.detailed_name || 'FAILED',
+            standardized_name: item.standardized_name || 'FAILED',
+            category: item.category || 'FAILED'
+          });
+        });
+
+        // Count successful standardizations
+        const successfulStandardizations = parsedReceiptData.items.filter((item: StandardizedItem) => item.standardized_name).length;
+        console.log(`Successfully standardized ${successfulStandardizations} out of ${parsedReceiptData.items.length} items`);
+      } catch (error) {
+        console.error('Error during item standardization:', error instanceof Error ? error.message : String(error));
+        // Continue processing but log the error
       }
     }
     
@@ -257,11 +294,8 @@ export async function POST(request: Request) {
           final_price: parseFloat(item.price) || 0,
           regular_price: parseFloat(item.regular_price) || null
         });
-      }
-      
-      // Store patterns for matching
-      const allPatterns = [];
-      for (const item of parsedReceiptData.items) {
+
+        // Collect patterns for this item
         if (item.standardized_name) {
           // Add basic patterns for all standardized items
           allPatterns.push({
@@ -315,33 +349,71 @@ export async function POST(request: Request) {
         console.log(`Successfully inserted ${receiptItems.length} receipt items (with detailed_name)`);
       }
       
-      // Only insert patterns if we have them and they aren't duplicates
-      if (allPatterns.length > 0) {
-        console.log(`Attempting to insert ${allPatterns.length} standardization patterns`);
-        
-        const { error: patternsError } = await supabase
-          .from('item_standardization')
-          .upsert(allPatterns, { 
-            onConflict: 'original_pattern',
-            ignoreDuplicates: true
-          });
-        
-        if (patternsError) {
-          console.error('Error inserting standardization patterns:', patternsError);
-          console.error('First few patterns:', JSON.stringify(allPatterns.slice(0, 3)));
-        } else {
-          console.log(`Successfully inserted ${allPatterns.length} standardization patterns`);
-        }
+      // Now that items are inserted, find cheaper alternatives
+      console.log(`Looking for cheaper alternatives for receipt ${receiptRecord.id}`);
+      const { data: allCheaperPrices, error: priceError } = await supabase
+        .rpc('find_all_cheaper_prices', {
+          receipt_id_param: receiptRecord.id
+        });
+
+      if (priceError) {
+        console.error('Error finding cheaper prices:', priceError);
+      } else if (allCheaperPrices && allCheaperPrices.length > 0) {
+        // Map the cheaper prices back to the receipt items
+        parsedReceiptData.items = parsedReceiptData.items.map((item: ReceiptItem) => {
+          const cheaperPrice = (allCheaperPrices as CheaperPrice[]).find(
+            (p: CheaperPrice) => p.original_item_name === item.name
+          );
+
+          if (cheaperPrice) {
+            return {
+              ...item,
+              cheaper_alternative: {
+                store_name: cheaperPrice.better_store,
+                price: cheaperPrice.better_price,
+                item_name: cheaperPrice.original_item_name,
+                savings: cheaperPrice.savings,
+                percentage_savings: cheaperPrice.savings_percentage,
+                is_temporal: cheaperPrice.is_temporal,
+                better_date: cheaperPrice.better_date
+              }
+            };
+          }
+          return item;
+        });
+
+        // Track how many items have cheaper alternatives
+        const itemsWithCheaperAlternatives = parsedReceiptData.items.filter((item: ReceiptItem) => item.cheaper_alternative).length;
+        console.log(`Found cheaper alternatives for ${itemsWithCheaperAlternatives} out of ${parsedReceiptData.items.length} items`);
+      }
+    }
+    
+    // Only insert patterns if we have them and they aren't duplicates
+    if (allPatterns.length > 0) {
+      console.log(`Attempting to insert ${allPatterns.length} standardization patterns`);
+      
+      const { error: patternsError } = await supabase
+        .from('item_standardization')
+        .upsert(allPatterns, { 
+          onConflict: 'original_pattern',
+          ignoreDuplicates: true
+        });
+      
+      if (patternsError) {
+        console.error('Error inserting standardization patterns:', patternsError);
+        console.error('First few patterns:', JSON.stringify(allPatterns.slice(0, 3)));
+      } else {
+        console.log(`Successfully inserted ${allPatterns.length} standardization patterns`);
       }
     }
     
     // Add detailed logs to debug alternatives
     if (parsedReceiptData.items && parsedReceiptData.items.length > 0) {
-      const itemsWithAlts = parsedReceiptData.items.filter((item: any) => item.cheaper_alternative).length;
+      const itemsWithAlts = parsedReceiptData.items.filter((item: ReceiptItem) => item.cheaper_alternative).length;
       console.log(`FINAL CHECK: Found ${itemsWithAlts} items with alternatives out of ${parsedReceiptData.items.length}`);
       
       if (itemsWithAlts > 0) {
-        parsedReceiptData.items.forEach((item: any) => {
+        parsedReceiptData.items.forEach((item: ReceiptItem) => {
           if (item.cheaper_alternative) {
             console.log(`Item ${item.name} has alternative: ${item.cheaper_alternative.item_name} at ${item.cheaper_alternative.store_name} for $${item.cheaper_alternative.price} (savings: ${item.cheaper_alternative.percentage_savings}%)`);
           }
@@ -592,47 +664,122 @@ async function standardizeItems(items: ReceiptItem[]) {
   if (!items || items.length === 0) return [];
   
   try {
-    const itemNames = items.map(item => item.name).filter(Boolean);
+    const itemNames = items.map(item => item.name || '').filter(Boolean);
     if (itemNames.length === 0) return items;
     
     console.log(`Standardizing ${itemNames.length} items using AI two-stage process`);
     
-    // First Stage: Detailed Item Standardization
-    const detailedItems = await generateDetailedItemNames(itemNames);
+    // Pre-process item names to handle common receipt formats
+    const preprocessedNames = itemNames.map(name => {
+      // Convert to uppercase for consistent processing
+      let processed = name.toUpperCase();
+      
+      // Handle common receipt abbreviations
+      const abbreviations: Record<string, string> = {
+        'ORG': 'ORGANIC',
+        'FRZ': 'FROZEN',
+        'BNLS': 'BONELESS',
+        'CHKN': 'CHICKEN',
+        'BRST': 'BREAST',
+        'NFC': 'NOT FROM CONCENTRATE',
+        'GF': 'GLUTEN FREE',
+        'FF': 'FAT FREE',
+        'PKG': 'PACKAGE',
+        'PREM': 'PREMIUM'
+      };
+      
+      // Replace known abbreviations
+      Object.entries(abbreviations).forEach(([abbr, full]) => {
+        const regex = new RegExp(`\\b${abbr}\\b`, 'g');
+        processed = processed.replace(regex, full);
+      });
+      
+      return processed;
+    });
+    
+    // First Stage: Detailed Item Standardization with improved error handling
+    let detailedItems = null;
+    try {
+      detailedItems = await generateDetailedItemNames(preprocessedNames);
+    } catch (error) {
+      console.error('Error in detailed standardization:', error);
+      // Attempt recovery by using preprocessed names
+      detailedItems = preprocessedNames.map(name => ({
+        originalName: name,
+        detailedName: name,
+        category: 'Other'
+      }));
+    }
+    
     if (!detailedItems) {
-      console.error('Failed to generate detailed item names');
-      return items;
+      console.error('Failed to generate detailed item names, using fallback');
+      detailedItems = preprocessedNames.map(name => ({
+        originalName: name,
+        detailedName: name,
+        category: 'Other'
+      }));
     }
     
-    // Second Stage: Generic Standardization
-    const standardizedItems = await generateGenericItemNames(detailedItems);
+    // Second Stage: Generic Standardization with improved error handling
+    let standardizedItems = null;
+    try {
+      standardizedItems = await generateGenericItemNames(detailedItems);
+    } catch (error) {
+      console.error('Error in generic standardization:', error);
+      // Attempt recovery by using detailed names
+      standardizedItems = detailedItems.map(item => ({
+        ...item,
+        genericName: item.detailedName.toLowerCase(),
+        patterns: [`%${item.detailedName.toLowerCase()}%`]
+      }));
+    }
+    
     if (!standardizedItems) {
-      console.error('Failed to generate generic standardized names');
-      return items;
+      console.error('Failed to generate generic standardized names, using fallback');
+      standardizedItems = detailedItems.map(item => ({
+        ...item,
+        genericName: item.detailedName.toLowerCase(),
+        patterns: [`%${item.detailedName.toLowerCase()}%`]
+      }));
     }
     
-    // Map the standardized information back to the original items
-    return items.map(item => {
-      const standardized = standardizedItems.find(
-        (stdItem: { originalName: string }) => stdItem.originalName.toLowerCase() === (item.name || '').toLowerCase()
+    // Map the standardized information back to the original items with validation
+    return items.map((item, index) => {
+      const standardized = standardizedItems?.find(
+        (stdItem: { originalName: string }) => 
+          stdItem.originalName.toLowerCase() === preprocessedNames[index].toLowerCase()
       );
       
       if (standardized) {
         return {
           ...item,
-          detailed_name: standardized.detailedName,
-          standardized_name: standardized.genericName,
-          category: standardized.category,
-          patterns: standardized.patterns
+          detailed_name: standardized.detailedName || item.name,
+          standardized_name: standardized.genericName || standardized.detailedName || item.name,
+          category: standardized.category || 'Other',
+          patterns: standardized.patterns || [`%${item.name}%`]
         };
       }
       
-      return item;
+      // Fallback if no standardization found
+      return {
+        ...item,
+        detailed_name: item.name,
+        standardized_name: preprocessedNames[index].toLowerCase(),
+        category: 'Other',
+        patterns: [`%${item.name}%`]
+      };
     });
     
   } catch (error) {
     console.error('Error in standardizeItems:', error);
-    return items;
+    // Return items with basic standardization as fallback
+    return items.map(item => ({
+      ...item,
+      detailed_name: item.name,
+      standardized_name: item.name.toLowerCase(),
+      category: 'Other',
+      patterns: [`%${item.name}%`]
+    }));
   }
 }
 
@@ -659,25 +806,43 @@ async function generateDetailedItemNames(items: string[]): Promise<DetailedItem[
       .select('standardized_name, category')
       .order('created_at', { ascending: false });
     
-    const existingCategories = [...new Set(existingStandards?.map(s => s.category) || [])];
+    const existingCategories = [...new Set(existingStandards?.map(s => s.category).filter((c): c is string => c !== undefined) || [])];
     
     // System prompt for detailed stage
     const systemPrompt = `
-      You are an expert in grocery item standardization. Your task is to analyze product names from receipts and:
-      1. Create a detailed standardized name for each item that clearly identifies what it is
-      2. Determine the appropriate product category
-      
-      Existing categories in the system: ${existingCategories.join(', ') || 'Beverages, Dairy, Produce, Meat, Bakery, Snacks, Frozen, Canned, Dry Goods, Household, Personal Care, Other'}
-      
+      You are an expert in grocery item standardization. Your task is to analyze product names from receipts and create consistent, standardized names following these strict rules:
+
+      1. Brand Names:
+         - Always include brand names at the start of the name
+         - Use proper capitalization for brand names (e.g., "Kelloggs", not "KELLOGG")
+         - Spell out abbreviated brand names (e.g., "Tropicana" not "TRPNCA")
+
+      2. Product Names:
+         - Use Title Case for all words except articles and prepositions
+         - Remove hyphens between words (e.g., "Fragrance Free" not "Fragrance-Free")
+         - Use the most specific name available (e.g., "Raspberry Iced Tea" not just "Iced Tea")
+         - Include key product attributes that differentiate items (e.g., "Pulp Free", "2 Percent", "Organic")
+         - Standardize common terms:
+           * "Percentage" or "%" → "Percent"
+           * "Ounce" or "OZ" → "Ounce"
+           * "LB" or "LBS" → "Pound"
+           * "PKG" → "Pack"
+
+      3. Categories:
+         Existing categories in the system: ${existingCategories.join(', ') || 'Beverages, Dairy, Produce, Meat, Bakery, Snacks, Frozen, Canned, Dry Goods, Household, Personal Care, Other'}
+
       For each item, provide:
       - originalName: The original name from the receipt
-      - detailedName: A descriptive name including brand and relevant details that help identify the product
+      - detailedName: A descriptive name following the above rules
       - category: The product category
-      
-      Be especially careful with abbreviations like:
+
+      Common Abbreviations to Handle:
       - OJ = Orange Juice
-      - TRPNCA = Tropicana
       - NFC = Not From Concentrate
+      - FRZ = Frozen
+      - ORG = Organic
+      - GF = Gluten Free
+      - FF = Fat Free or Fragrance Free (determine from context)
     `;
     
     // Call OpenAI API with function calling
@@ -725,7 +890,7 @@ async function generateDetailedItemNames(items: string[]): Promise<DetailedItem[
     });
     
     const toolCall = response.choices[0].message.tool_calls?.[0];
-    if (!toolCall) {
+    if (!toolCall || !toolCall.function.arguments) {
       console.error('Failed to get detailed standardization data from AI');
       return null;
     }
@@ -747,28 +912,46 @@ async function generateGenericItemNames(detailedItems: DetailedItem[]): Promise<
     // System prompt for generic standardization
     const systemPrompt = `
       You are an expert in grocery item standardization. Your task is to create generic, standardized names for grocery items to enable price comparison across different stores.
-      
-      For each detailed item, you need to:
-      1. Create a generic standardized name that removes brand names and unnecessary details
-      2. Generate SQL LIKE patterns that would match similar items
-      
-      Make the item names as generic as possible while keeping them identifiable. Use simple and consistent phrasing. Do not include brand names or unnecessary details.
-      
-      For example:
-      - "Tropicana Pure Premium Orange Juice No Pulp" → "Orange Juice"
-      - "Organic Valley 2% Milk" → "Milk"
-      - "Heinz Tomato Ketchup" → "Ketchup"
-      
+
+      Follow these strict rules for generic names:
+      1. Remove brand names but keep all relevant product details
+      2. Keep specific flavors, varieties, and key attributes
+      3. Use Title Case consistently
+      4. Standardize measurements and attributes:
+         - Use "Percent" instead of "%"
+         - Spell out "Ounce" instead of "oz"
+         - Use "Pack" instead of "pk" or "pkg"
+      5. Include key differentiating features:
+         - Fat content (e.g., "2 Percent Milk")
+         - Product form (e.g., "Shredded Cheese" vs "Block Cheese")
+         - Specific variety (e.g., "Raspberry Iced Tea" vs just "Iced Tea")
+      6. Remove size/quantity unless it's part of the product identity
+      7. Use consistent terminology across similar products
+
+      Examples of Standardization:
+      - "Tropicana Pure Premium Orange Juice No Pulp" → "Pulp Free Orange Juice"
+      - "NEUTROGENA FRAG F" → "Fragrance Free Facial Cleanser"
+      - "KELLOGG NUTRI GRAIN" → "Fruit Filled Breakfast Bars"
+      - "BEL MOZZA PERLZ" → "Mozzarella Pearl Cheese"
+      - "DRISCOLL BERRIES" → "Fresh Mixed Berries"
+      - "SIMPLY 2 PF 52Z" → "Pulp Free Orange Juice"
+      - "4 QT MEXICA MEX" → "Mexican Blend Shredded Cheese"
+
       For each item, provide:
       - originalName: The original receipt item name
       - detailedName: The detailed standardized name from the first stage
-      - genericName: A simple, generic name for price comparison
+      - genericName: A consistent generic name following the above rules
       - category: The product category
       - patterns: Array of SQL LIKE patterns that would match similar items (use % as wildcard)
     `;
     
     // Format the detailed items as input
-    const detailedItemsText = detailedItems.map(item => 
+    const detailedItemsText = detailedItems.filter((item): item is DetailedItem => 
+      item !== undefined && 
+      typeof item.originalName === 'string' && 
+      typeof item.detailedName === 'string' && 
+      typeof item.category === 'string'
+    ).map(item => 
       `${item.originalName} → ${item.detailedName} (${item.category})`
     ).join('\n');
     
@@ -826,7 +1009,7 @@ async function generateGenericItemNames(detailedItems: DetailedItem[]): Promise<
     });
     
     const toolCall = response.choices[0].message.tool_calls?.[0];
-    if (!toolCall) {
+    if (!toolCall || !toolCall.function.arguments) {
       console.error('Failed to get generic standardization data from AI');
       return null;
     }

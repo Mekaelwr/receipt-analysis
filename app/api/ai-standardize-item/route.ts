@@ -130,7 +130,7 @@ export async function POST(request: Request) {
       items_standardized: standardizedItems.length,
       patterns_generated: patternsToInsert.length,
       patterns_inserted: insertionResult ? insertionResult.length : 0,
-      standardized_items: standardizedItems.map(item => ({
+      standardized_items: standardizedItems.map((item: DetailedItem & { genericName?: string; patterns?: string[] }) => ({
         originalName: item.originalName,
         detailedName: item.detailedName, // For user display
         genericName: item.genericName,   // For price comparison
@@ -164,21 +164,39 @@ async function generateDetailedItemNames(items: string[]) {
     
     // System prompt for detailed stage
     const systemPrompt = `
-      You are an expert in grocery item standardization. Your task is to analyze product names from receipts and:
-      1. Create a detailed standardized name for each item that clearly identifies what it is
-      2. Determine the appropriate product category
-      
-      Existing categories in the system: ${existingCategories.join(', ') || 'Beverages, Dairy, Produce, Meat, Bakery, Snacks, Frozen, Canned, Dry Goods, Household, Personal Care, Other'}
-      
+      You are an expert in grocery item standardization. Your task is to analyze product names from receipts and create consistent, standardized names following these strict rules:
+
+      1. Brand Names:
+         - Always include brand names at the start of the name
+         - Use proper capitalization for brand names (e.g., "Kelloggs", not "KELLOGG")
+         - Spell out abbreviated brand names (e.g., "Tropicana" not "TRPNCA")
+
+      2. Product Names:
+         - Use Title Case for all words except articles and prepositions
+         - Remove hyphens between words (e.g., "Fragrance Free" not "Fragrance-Free")
+         - Use the most specific name available (e.g., "Raspberry Iced Tea" not just "Iced Tea")
+         - Include key product attributes that differentiate items (e.g., "Pulp Free", "2 Percent", "Organic")
+         - Standardize common terms:
+           * "Percentage" or "%" → "Percent"
+           * "Ounce" or "OZ" → "Ounce"
+           * "LB" or "LBS" → "Pound"
+           * "PKG" → "Pack"
+
+      3. Categories:
+         Existing categories in the system: ${existingCategories.join(', ') || 'Beverages, Dairy, Produce, Meat, Bakery, Snacks, Frozen, Canned, Dry Goods, Household, Personal Care, Other'}
+
       For each item, provide:
       - originalName: The original name from the receipt
-      - detailedName: A descriptive name including brand and relevant details that help identify the product
+      - detailedName: A descriptive name following the above rules
       - category: The product category
-      
-      Be especially careful with abbreviations like:
+
+      Common Abbreviations to Handle:
       - OJ = Orange Juice
-      - TRPNCA = Tropicana
       - NFC = Not From Concentrate
+      - FRZ = Frozen
+      - ORG = Organic
+      - GF = Gluten Free
+      - FF = Fat Free or Fragrance Free (determine from context)
     `;
     
     // Call OpenAI API with function calling
@@ -248,22 +266,35 @@ async function generateGenericItemNames(detailedItems: DetailedItem[]) {
     // System prompt for generic standardization
     const systemPrompt = `
       You are an expert in grocery item standardization. Your task is to create generic, standardized names for grocery items to enable price comparison across different stores.
-      
-      For each detailed item, you need to:
-      1. Create a generic standardized name that removes brand names and unnecessary details
-      2. Generate SQL LIKE patterns that would match similar items
-      
-      Make the item names as generic as possible while keeping them identifiable. Use simple and consistent phrasing. Do not include brand names or unnecessary details.
-      
-      For example:
-      - "Tropicana Pure Premium Orange Juice No Pulp" → "Orange Juice"
-      - "Organic Valley 2% Milk" → "Milk"
-      - "Heinz Tomato Ketchup" → "Ketchup"
-      
+
+      Follow these strict rules for generic names:
+      1. Remove brand names but keep all relevant product details
+      2. Keep specific flavors, varieties, and key attributes
+      3. Use Title Case consistently
+      4. Standardize measurements and attributes:
+         - Use "Percent" instead of "%"
+         - Spell out "Ounce" instead of "oz"
+         - Use "Pack" instead of "pk" or "pkg"
+      5. Include key differentiating features:
+         - Fat content (e.g., "2 Percent Milk")
+         - Product form (e.g., "Shredded Cheese" vs "Block Cheese")
+         - Specific variety (e.g., "Raspberry Iced Tea" vs just "Iced Tea")
+      6. Remove size/quantity unless it's part of the product identity
+      7. Use consistent terminology across similar products
+
+      Examples of Standardization:
+      - "Tropicana Pure Premium Orange Juice No Pulp" → "Pulp Free Orange Juice"
+      - "NEUTROGENA FRAG F" → "Fragrance Free Facial Cleanser"
+      - "KELLOGG NUTRI GRAIN" → "Fruit Filled Breakfast Bars"
+      - "BEL MOZZA PERLZ" → "Mozzarella Pearl Cheese"
+      - "DRISCOLL BERRIES" → "Fresh Mixed Berries"
+      - "SIMPLY 2 PF 52Z" → "Pulp Free Orange Juice"
+      - "4 QT MEXICA MEX" → "Mexican Blend Shredded Cheese"
+
       For each item, provide:
       - originalName: The original receipt item name
       - detailedName: The detailed standardized name from the first stage
-      - genericName: A simple, generic name without brand or unnecessary details
+      - genericName: A consistent generic name following the above rules
       - category: The product category
       - patterns: Array of SQL LIKE patterns that would match similar items (use % as wildcard)
     `;

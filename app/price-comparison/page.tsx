@@ -49,8 +49,8 @@ export default function PriceComparisonPage() {
         setLoading(true);
         console.log("Fetching price comparison data...");
         
-        // Fetch price comparison data
-        const comparisonResponse = await fetch('/api/price-comparison');
+        // Fetch price comparison data with the appropriate type
+        const comparisonResponse = await fetch(`/api/price-comparison?type=${analysisType}`);
         console.log("Price comparison response status:", comparisonResponse.status);
         
         if (!comparisonResponse.ok) {

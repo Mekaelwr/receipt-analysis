@@ -10,11 +10,11 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export interface StoreComparison {
   item_name: string;
-  stores: {
+  stores: Array<{
     store_name: string;
     price: number;
     detailed_name: string;
-  }[];
+  }>;
   price_difference: number;
   percentage_difference: number;
   category: string;
@@ -22,7 +22,7 @@ export interface StoreComparison {
 
 interface ReceiptItem {
   standardized_item_name: string;
-  item_price: string;
+  item_price: string | number;
   detailed_name?: string;
   category?: string;
   receipts: {
@@ -43,7 +43,6 @@ export async function GET() {
   try {
     console.log("Store price comparison API called");
     
-    // SQL query to find items that appear in multiple stores with price differences
     const { data, error } = await supabase.from('receipt_items')
       .select(`
         standardized_item_name,
@@ -63,24 +62,27 @@ export async function GET() {
       throw error;
     }
     
-    console.log(`Found ${data?.length || 0} receipt items`);
+    if (!data || !Array.isArray(data)) {
+      console.error("Invalid data format received from database:", data);
+      throw new Error('Invalid data format received from database');
+    }
     
     // Process the data to find items available at multiple stores
     const itemsMap = new Map<string, ItemData>();
     
-    for (const item of data as any[]) {
+    for (const item of data as unknown as ReceiptItem[]) {
       let storeName = 'Unknown Store';
       
       if (item.receipts) {
         if (Array.isArray(item.receipts) && item.receipts.length > 0) {
-          storeName = item.receipts[0].store_name;
-        } else if (typeof item.receipts === 'object') {
-          storeName = item.receipts.store_name;
+          storeName = item.receipts[0].store_name || 'Unknown Store';
+        } else {
+          storeName = (item.receipts as { store_name: string }).store_name || 'Unknown Store';
         }
       }
       
       const itemName = item.standardized_item_name;
-      const price = parseFloat(item.item_price);
+      const price = parseFloat(item.item_price.toString());
       
       if (!itemName || isNaN(price)) continue;
       
@@ -139,8 +141,6 @@ export async function GET() {
     return NextResponse.json(comparisons);
   } catch (error) {
     console.error('Error in store price comparison API:', error);
-    
-    // Return an empty array instead of an error object to prevent client-side format errors
-    return NextResponse.json([]);
+    return NextResponse.json([], { status: 500 });
   }
 } 

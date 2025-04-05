@@ -15,6 +15,8 @@ export interface ReceiptItem {
     item_name: string;
     savings: string;
     percentage_savings: string;
+    is_temporal?: boolean;  // true if this is a historical price from same store
+    days_ago?: number;      // how many days ago was this price available
   };
 }
 
@@ -36,11 +38,35 @@ interface Props {
 }
 
 export function ReceiptDisplay({ receipt }: Props) {
+  // Calculate total potential savings from cheaper alternatives
+  const itemsWithAlternatives = receipt.items.filter(item => item.cheaper_alternative);
+  console.log('Items with alternatives:', itemsWithAlternatives);
+
+  const totalPotentialSavings = itemsWithAlternatives.reduce((sum, item) => {
+    if (!item.cheaper_alternative) return sum;
+    
+    // Parse the original price and alternative price
+    const originalPrice = parseFloat(item.original_price.replace('$', ''));
+    const alternativePrice = parseFloat(item.cheaper_alternative.price.replace('$', ''));
+    
+    // Calculate savings as the difference between prices
+    const savings = originalPrice - alternativePrice;
+    
+    console.log(`Item: ${item.name}`);
+    console.log(`Original price: ${originalPrice}`);
+    console.log(`Alternative price: ${alternativePrice}`);
+    console.log(`Calculated savings: ${savings}`);
+    
+    return sum + (isNaN(savings) ? 0 : savings);
+  }, 0);
+
+  console.log('Total potential savings:', totalPotentialSavings);
+
   return (
     <div className={styles.receiptWrapper}>
       <div className={styles.receiptHero}>
         <h2 className={styles.receiptHeroTitle}>
-          <span className={styles.receiptHeroHighlight}>{receipt.totalSavings}</span> in savings found!
+          <span className={styles.receiptHeroHighlight}>${totalPotentialSavings.toFixed(2)}</span> in savings found!
         </h2>
         
         <div className={styles.receipt}>
@@ -65,7 +91,11 @@ export function ReceiptDisplay({ receipt }: Props) {
                     <div className={styles.receiptNumber}>
                       <FontAwesomeIcon icon={faPiggyBank} className={styles.statsIcon} />
                     </div>
-                    <span>Better price at {item.cheaper_alternative.store_name}</span>
+                    {item.cheaper_alternative.is_temporal ? (
+                      <span>Better price {item.cheaper_alternative.days_ago} days ago</span>
+                    ) : (
+                      <span>Better price at {item.cheaper_alternative.store_name}</span>
+                    )}
                     <span className={styles.receiptSavingsPrice}>{item.cheaper_alternative.price}</span>
                   </div>
                 </div>

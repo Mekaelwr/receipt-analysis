@@ -33,13 +33,10 @@ export default function StorePriceComparison({ activeCategory }: StorePriceCompa
     async function fetchData() {
       try {
         setLoading(true);
-        console.log("Fetching store price comparison data...");
-        
         const response = await fetch('/api/store-price-comparison');
         
         if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`HTTP error! Status: ${response.status}, Details: ${errorText}`);
+          throw new Error('Failed to fetch price comparisons');
         }
         
         const data = await response.json();

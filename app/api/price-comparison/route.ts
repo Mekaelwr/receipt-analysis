@@ -4,25 +4,53 @@ import { NextResponse } from 'next/server';
 export const runtime = 'edge';
 
 // Initialize Supabase client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Exported interfaces for use in other files
-export interface ReceiptItem {
+export interface ReceiptData {
+  id: string;
+  store_name: string;
+  created_at: string;
+}
+
+interface ReceiptItem {
+  original_item_name: string;
   standardized_item_name: string;
-  final_price: number;
-  quantity: number;
-  category: string;
+  item_price: number;
   receipts: {
     store_name: string;
+    created_at: string;
   };
 }
 
+// Add interface for the database response
+interface CheaperPrice {
+  original_item_name: string;
+  original_price: number;
+  better_price: number;
+  better_store: string;
+  better_date: Date;
+  savings: number;
+  savings_percentage: number;
+  is_temporal: boolean;
+}
+
+interface DatabaseComparison {
+  original_item_name: string;
+  current_price: number;
+  cheaper_price: number;
+  cheaper_store: string;
+}
+
 export interface PriceComparison {
-  standardized_item_name: string;
-  store_name: string;
-  min_price: number;
+  itemName: string;
+  originalPrice: number;
+  cheaperPrice: number;
+  cheaperStore: string;
+  savings: number;
+  savingsPercentage: string;
 }
 
 export interface ProcessedItem {
@@ -36,52 +64,121 @@ export interface ProcessedItem {
   category: string;
 }
 
+interface HistoricalPriceResponse {
+  item_price: number;
+  receipts: {
+    created_at: string;
+  };
+}
+
+export interface HistoricalPrice {
+  standardized_item_name: string;
+  lowest_price: number;
+  price_date: string;
+}
+
+export interface TemporalComparison {
+  standardized_item_name: string;
+  current_price: number;
+  lowest_price: number;
+  store_name: string;
+  price_date: string;
+}
+
+interface TemporalItem {
+  standardized_item_name: string;
+  item_price: number;
+  receipts: {
+    store_name: string;
+    created_at: string;
+  };
+}
+
+interface HistoricalItem {
+  item_price: number;
+  receipts: {
+    created_at: string;
+  };
+}
+
+function standardizeItemName(name: string): string {
+  // Remove common variations and standardize
+  return name.toLowerCase()
+    .replace(/raspberry |, raspberry flavor/, '')  // Normalize flavors
+    .replace(/mixed |assorted |premium /, '')      // Remove quality prefixes
+    .replace(/fresh |frozen |canned /, '')         // Remove state prefixes
+    .replace(/blend |product |kit /, '')           // Remove generic suffixes
+    .trim();
+}
+
+interface TransformedComparison {
+  itemName: string;
+  originalPrice: number;
+  cheaperPrice: number;
+  cheaperStore: string;
+  savings: number;
+  savingsPercentage: string;
+}
+
+interface DatabaseReceiptItem {
+  original_item_name: string;
+  standardized_item_name: string;
+  item_price: number;
+  receipts: {
+    store_name: string;
+    created_at: string;
+  }[];
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const receiptId = searchParams.get('receipt_id');
-  const debug = searchParams.get('debug') === 'true';
-  
-  console.log(`Processing receipt: ${receiptId}, debug mode: ${debug}`);
+  const receiptId = searchParams.get('receiptId');
+
+  console.log('Price comparison API called:', { receiptId });
 
   if (!receiptId) {
-    return NextResponse.json({ error: 'receipt_id is required' }, { status: 400 });
+    console.error('Missing receiptId parameter');
+    return NextResponse.json({ error: 'Receipt ID is required' }, { status: 400 });
   }
 
   try {
-    // Call the RPC function to find cheaper alternatives
-    const startTime = Date.now();
-    const { data, error } = await supabase
-      .rpc('find_receipt_cheaper_alternatives', { receipt_id: receiptId });
-    const endTime = Date.now();
+    // Use our new unified function to get all cheaper prices
+    const { data: allCheaperPrices, error } = await supabase
+      .rpc('find_all_cheaper_prices', {
+        receipt_id_param: receiptId
+      });
 
     if (error) {
-      console.error('Error finding cheaper alternatives:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('Database error:', error);
+      throw error;
     }
 
-    if (debug) {
-      console.log(`Query execution time: ${endTime - startTime}ms`);
-      console.log(`Found ${data ? data.length : 0} cheaper alternatives`);
-      if (data && data.length > 0) {
-        console.log('Sample alternative:', data[0]);
-      }
-    }
+    console.log('Raw cheaper prices:', allCheaperPrices);
 
-    // Return the results
-    return NextResponse.json({
-      data,
-      count: data ? data.length : 0,
-      execution_time_ms: endTime - startTime,
-      debug_info: debug ? {
-        receipt_id: receiptId,
-        query_time: endTime - startTime,
-        alternative_count: data ? data.length : 0,
-        function_name: 'find_receipt_cheaper_alternatives'
-      } : null
+    // Transform the data to match the frontend format
+    const transformedComparisons: PriceComparison[] = (allCheaperPrices || []).map((item: CheaperPrice) => {
+      // Calculate days ago if we have a better_date
+      const daysAgo = item.better_date ? 
+        Math.floor((Date.now() - new Date(item.better_date).getTime()) / (1000 * 60 * 60 * 24)) : 
+        undefined;
+
+      return {
+        itemName: item.original_item_name,
+        originalPrice: item.original_price,
+        cheaperPrice: item.better_price,
+        cheaperStore: item.better_store,
+        savings: item.savings,
+        savingsPercentage: item.savings_percentage.toFixed(1),
+        is_temporal: item.is_temporal,
+        days_ago: daysAgo
+      };
     });
+
+    console.log('Transformed comparisons:', transformedComparisons);
+    return NextResponse.json(transformedComparisons);
   } catch (error) {
-    console.error('Error in price comparison endpoint:', error);
-    return NextResponse.json({ error: 'Server error processing request' }, { status: 500 });
+    console.error('Error in price comparison API:', error);
+    return NextResponse.json({ error: 'Failed to fetch price comparisons' }, { status: 500 });
   }
 }
 

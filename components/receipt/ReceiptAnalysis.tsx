@@ -28,6 +28,8 @@ interface ReceiptJSON {
       item_name: string;
       savings: number;
       percentage_savings: number;
+      is_temporal: boolean;
+      days_ago: number;
     };
   }>;
   taxes: Array<{
@@ -77,6 +79,8 @@ interface CheaperAlternative {
   item_name: string;
   savings: number;
   percentage_savings: number;
+  is_temporal: boolean;
+  days_ago: number;
 }
 
 interface ReceiptItem {
@@ -288,7 +292,9 @@ export function ReceiptAnalysis({ analysisText, receiptJSON }: ReceiptAnalysisPr
           price: item.cheaper_alternative.price,
           item_name: item.cheaper_alternative.item_name,
           savings: item.cheaper_alternative.savings,
-          percentage_savings: item.cheaper_alternative.percentage_savings || 0
+          percentage_savings: item.cheaper_alternative.percentage_savings || 0,
+          is_temporal: item.cheaper_alternative.is_temporal,
+          days_ago: item.cheaper_alternative.days_ago
         };
       }
       
@@ -459,10 +465,14 @@ export function ReceiptAnalysis({ analysisText, receiptJSON }: ReceiptAnalysisPr
                   {item.cheaper_alternative && (
                     <div className={styles.savingsRow}>
                       <div className={styles.receiptNumber}>
-                        <i className="fa-solid fa-piggy-bank" aria-hidden="true"></i>
+                        <i className={`fa-solid ${item.cheaper_alternative.is_temporal ? 'fa-clock-rotate-left' : 'fa-piggy-bank'}`} aria-hidden="true"></i>
                       </div>
                       <div className={styles.savingsInfo}>
-                        <span>{item.cheaper_alternative.item_name || `Better price at ${item.cheaper_alternative.store_name}`}</span>
+                        {item.cheaper_alternative.is_temporal ? (
+                          <span>Better price {item.cheaper_alternative.days_ago} days ago</span>
+                        ) : (
+                          <span>{item.cheaper_alternative.item_name || `Better price at ${item.cheaper_alternative.store_name}`}</span>
+                        )}
                         <span className={styles.savingsPercent}>
                           Save {(item.cheaper_alternative.percentage_savings || 0).toFixed(0)}%
                         </span>
