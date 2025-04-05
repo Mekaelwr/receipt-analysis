@@ -37,9 +37,9 @@ export async function GET(request: Request) {
   try {
     // Call our unified price comparison function
     const { data, error } = await supabase.rpc(
-      'find_best_price',
+      'find_all_cheaper_prices',
       { 
-        p_receipt_id: receiptId,
+        receipt_id_param: receiptId,
         p_days_lookback: daysLookback
       }
     );
@@ -56,6 +56,14 @@ export async function GET(request: Request) {
         Math.floor((Date.now() - new Date(item.better_date).getTime()) / (1000 * 60 * 60 * 24)) : 
         undefined;
 
+      // Log the transformation for debugging
+      console.log('Transforming item:', {
+        name: item.original_item_name,
+        is_temporal: item.is_temporal,
+        store: item.better_store,
+        days_ago: daysAgo
+      });
+
       return {
         id: item.id,
         name: item.original_item_name,
@@ -67,7 +75,7 @@ export async function GET(request: Request) {
           item_name: item.original_item_name,
           savings: `$${item.savings.toFixed(2)}`,
           percentage_savings: `${item.savings_percentage.toFixed(1)}%`,
-          is_temporal: item.is_temporal,
+          is_temporal: item.is_temporal === true, // Ensure boolean type
           days_ago: daysAgo
         }
       };
