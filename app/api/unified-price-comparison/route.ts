@@ -37,10 +37,9 @@ export async function GET(request: Request) {
   try {
     // Call our unified price comparison function
     const { data, error } = await supabase.rpc(
-      'find_best_price',
+      'find_all_cheaper_prices',
       { 
-        p_receipt_id: receiptId,
-        p_days_lookback: daysLookback
+        receipt_id_param: receiptId
       }
     );
 
@@ -49,12 +48,28 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    console.log('=== API DEBUG ===');
+    console.log('Raw data from database:', data);
+    
+    // Add detailed date debugging
+    console.log('=== DATE DEBUG ===');
+    (data || []).forEach((item: any) => {
+      console.log(`Date info for ${item.original_item_name}:`, {
+        better_date: item.better_date,
+        debug_current_date: item.debug_current_date,
+        debug_cheaper_date: item.debug_cheaper_date,
+        store_match: item.better_store === item.store_name,
+        is_temporal: item.is_temporal
+      });
+    });
+
     // Transform the data to include proper temporal vs store information
     const transformedData = (data || []).map((item: any) => {
-      // Calculate days ago for temporal comparisons
-      const daysAgo = item.better_date ? 
-        Math.floor((Date.now() - new Date(item.better_date).getTime()) / (1000 * 60 * 60 * 24)) : 
-        undefined;
+      console.log('=== DATE TRACE ===', {
+        itemName: item.original_item_name,
+        rawDate: item.cheaper_date,  // Date from SQL
+        betterDate: item.better_date // Date being passed to frontend
+      });
 
       return {
         id: item.id,
@@ -67,11 +82,13 @@ export async function GET(request: Request) {
           item_name: item.original_item_name,
           savings: `$${item.savings.toFixed(2)}`,
           percentage_savings: `${item.savings_percentage.toFixed(1)}%`,
-          is_temporal: item.is_temporal,
-          days_ago: daysAgo
+          is_temporal: Boolean(item.is_temporal),
+          better_date: item.better_date
         }
       };
     });
+
+    console.log('Transformed data:', transformedData);
 
     // Calculate total savings
     const totalSavings = (data || []).reduce((sum: number, item: any) => sum + (item.savings || 0), 0);

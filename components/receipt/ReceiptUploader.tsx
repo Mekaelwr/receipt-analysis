@@ -36,6 +36,7 @@ interface ReceiptJSON {
       percentage_savings: number;
       is_temporal: boolean;
       days_ago: number;
+      better_date: string;
     };
   }>;
   taxes: Array<{
@@ -107,8 +108,9 @@ const formatReceiptData = (receipt: ReceiptJSON): ReceiptData => {
         item_name: item.cheaper_alternative.item_name,
         savings: `$${Number(item.cheaper_alternative.savings || 0).toFixed(2)}`,
         percentage_savings: `${Number(item.cheaper_alternative.percentage_savings || 0).toFixed(1)}%`,
-        is_temporal: item.cheaper_alternative.is_temporal,
-        days_ago: item.cheaper_alternative.days_ago
+        is_temporal: Boolean(item.cheaper_alternative.is_temporal),
+        days_ago: item.cheaper_alternative.days_ago,
+        better_date: item.cheaper_alternative.better_date
       } : undefined
     })),
     totals: {

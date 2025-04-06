@@ -16,7 +16,7 @@ export interface ReceiptItem {
     savings: string;
     percentage_savings: string;
     is_temporal?: boolean;  // true if this is a historical price from same store
-    days_ago?: number;      // how many days ago was this price available
+    better_date?: string;   // the date when the better price was found
   };
 }
 
@@ -42,6 +42,22 @@ export function ReceiptDisplay({ receipt }: Props) {
   const itemsWithAlternatives = receipt.items.filter(item => item.cheaper_alternative);
   console.log('Items with alternatives:', itemsWithAlternatives);
 
+  console.log('=== RECEIPT DEBUG ===');
+  console.log('Store:', receipt.store);
+  console.log('Receipt Date:', receipt.date);
+  console.log('Raw Items with Alternatives:', itemsWithAlternatives.map(item => ({
+    name: item.name,
+    currentPrice: item.original_price,
+    currentDate: receipt.date,
+    alternative: {
+      store: item.cheaper_alternative?.store_name,
+      price: item.cheaper_alternative?.price,
+      date: item.cheaper_alternative?.better_date,
+      is_temporal: item.cheaper_alternative?.is_temporal,
+      raw_alternative: item.cheaper_alternative // Log the entire alternative object
+    }
+  })));
+
   const totalPotentialSavings = itemsWithAlternatives.reduce((sum, item) => {
     if (!item.cheaper_alternative) return sum;
     
@@ -61,6 +77,26 @@ export function ReceiptDisplay({ receipt }: Props) {
   }, 0);
 
   console.log('Total potential savings:', totalPotentialSavings);
+
+  console.log('=== TEMPORAL DEBUG ===');
+  itemsWithAlternatives.forEach(item => {
+    if (item.cheaper_alternative?.store_name === receipt.store) {
+      console.log('Potential temporal match found:', {
+        item: item.name,
+        currentStore: receipt.store,
+        currentDate: receipt.date,
+        betterStore: item.cheaper_alternative.store_name,
+        betterDate: item.cheaper_alternative.better_date,
+        currentPrice: item.original_price,
+        betterPrice: item.cheaper_alternative.price,
+        debug: {
+          storesMatch: item.cheaper_alternative.store_name === receipt.store,
+          hasBetterDate: item.cheaper_alternative.better_date != null,
+          rawAlternative: item.cheaper_alternative // Log the entire alternative object
+        }
+      });
+    }
+  });
 
   return (
     <div className={styles.receiptWrapper}>
@@ -92,7 +128,12 @@ export function ReceiptDisplay({ receipt }: Props) {
                       <FontAwesomeIcon icon={faPiggyBank} className={styles.statsIcon} />
                     </div>
                     {item.cheaper_alternative.is_temporal ? (
-                      <span>Better price {item.cheaper_alternative.days_ago} days ago</span>
+                      <span>Better price on {item.cheaper_alternative.better_date ? 
+                        new Date(item.cheaper_alternative.better_date).toLocaleDateString('en-US', {
+                          month: '2-digit',
+                          day: '2-digit'
+                        }) 
+                        : 'unknown date'}</span>
                     ) : (
                       <span>Better price at {item.cheaper_alternative.store_name}</span>
                     )}
