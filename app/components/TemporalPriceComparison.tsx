@@ -39,7 +39,7 @@ export default function TemporalPriceComparison({ activeCategory }: TemporalPric
         setLoading(true);
         console.log("Fetching temporal price comparison data...");
         
-        const response = await fetch('/api/temporal-price-comparison');
+        const response = await fetch('/api/unified-price-comparison');
         
         if (!response.ok) {
           const errorText = await response.text();

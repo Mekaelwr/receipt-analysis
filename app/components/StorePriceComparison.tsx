@@ -33,7 +33,7 @@ export default function StorePriceComparison({ activeCategory }: StorePriceCompa
     async function fetchData() {
       try {
         setLoading(true);
-        const response = await fetch('/api/store-price-comparison');
+        const response = await fetch('/api/unified-price-comparison');
         
         if (!response.ok) {
           throw new Error('Failed to fetch price comparisons');

@@ -20,7 +20,7 @@ export default function StandardizePage() {
     setResult(null);
 
     try {
-      const response = await fetch('/api/standardize-items', {
+      const response = await fetch('/api/unified-price-comparison/standardize', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -100,11 +100,6 @@ export default async function ReceiptsPage({
                 {receipts.map(receipt => (
                   <li key={receipt.id}>
                     <span className="font-mono">{receipt.id}</span> - {receipt.store_name} ({receipt.receipt_items.length} items)
-                    <a href={`/api/debug-comparison?receipt_id=${receipt.id}`} 
-                       target="_blank" 
-                       className="ml-2 text-blue-500 hover:underline">
-                      Debug
-                    </a>
                   </li>
                 ))}
               </ul>

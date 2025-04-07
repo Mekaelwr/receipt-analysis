@@ -6,7 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
-import { PiggyBank, Receipt, DollarSign } from 'lucide-react';
+import { PiggyBank, Receipt, DollarSign, Home, Camera, User } from 'lucide-react';
 // import { supabase } from '@/utils/supabase';
 
 // TopBar component handles user profile display and navigation
@@ -22,27 +22,22 @@ export default function TopBar() {
   // State for tracking logout process
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const navigation = [
+  const menuItems = [
     {
-      name: 'Penny Pincher',
-      href: '/penny-pincher',
-      icon: PiggyBank
+      label: 'Dashboard',
+      href: '/dashboard',
+      icon: <Home className="h-4 w-4" />,
     },
     {
-      name: 'Uploaded Receipt',
-      href: '/uploaded-receipt',
-      icon: Receipt
-    },
-    {
-      name: 'Take Photo',
+      label: 'Take Photo',
       href: '/take-photo',
-      icon: Receipt
+      icon: <Camera className="h-4 w-4" />,
     },
     {
-      name: 'Price Comparison',
-      href: '/price-comparison',
-      icon: DollarSign
-    }
+      label: 'Profile',
+      href: '/profile',
+      icon: <User className="h-4 w-4" />,
+    },
   ];
 
   // Handle click outside dropdown to close it
@@ -81,14 +76,14 @@ export default function TopBar() {
             <span className="font-sans">NextTemp</span>
           </Link>
           
-          {navigation.map((item) => (
+          {menuItems.map((item) => (
             <Link
-              key={item.name}
+              key={item.label}
               href={item.href}
               className="px-4 py-2 text-sm font-medium text-text dark:text-text-dark hover:opacity-80 transition-opacity flex items-center gap-2"
             >
-              <item.icon className="h-4 w-4" />
-              {item.name}
+              {item.icon}
+              {item.label}
             </Link>
           ))}
         </div>

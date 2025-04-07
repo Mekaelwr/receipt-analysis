@@ -33,4 +33,21 @@ export const apiConfig = {
     regions: ['iad1', 'sfo1'], // Example Cloudflare regions
     cache: 'manual',
   }
-}; 
+};
+
+export const PROTECTED_ROUTES = [
+  'analyze-receipt',
+  'upload-receipt',
+  'reprocess-receipt',
+  'receipt-cheaper-alternatives',
+  'cheaper-alternatives',
+  'user',
+  'stripe',
+  'admin'
+];
+
+export const PUBLIC_ROUTES = [
+  'receipt',
+  'price-comparison',
+  'unified-price-comparison'
+]; 
